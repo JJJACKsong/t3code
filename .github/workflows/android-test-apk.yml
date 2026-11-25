@@ -1,0 +1,47 @@
+name: Android test APK
+on:
+  push:
+    branches: [android/chat-filters-zh]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      APP_VARIANT: preview
+      EXPO_NO_TELEMETRY: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: pnpm/action-setup@v4
+      - run: pnpm install --frozen-lockfile
+      - uses: android-actions/setup-android@v3
+      - run: sdkmanager "platforms;android-37.0" "build-tools;37.0.0" "ndk;27.1.12297006" "cmake;3.22.1"
+      - run: pnpm exec expo prebuild --platform android --no-install
+        working-directory: apps/mobile
+      - name: Build standalone ARM64 APK
+        working-directory: apps/mobile/android
+        env:
+          NODE_ENV: production
+        run: ./gradlew :app:assembleRelease -PreactNativeArchitectures=arm64-v8a -Pandroid.enableMinifyInReleaseBuilds=false -Pandroid.enableShrinkResourcesInReleaseBuilds=false --max-workers=2
+      - name: Verify package and signature
+        run: |
+          apk=apps/mobile/android/app/build/outputs/apk/release/app-release.apk
+          "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify "$apk"
+          "$ANDROID_HOME/build-tools/37.0.0/aapt" dump badging "$apk" | grep -F "package: name='com.t3tools.t3code.preview'"
+          cp "$apk" t3code-android-zh-arm64.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: t3code-android-zh-arm64
+          path: t3code-android-zh-arm64.apk
+          if-no-files-found: error
