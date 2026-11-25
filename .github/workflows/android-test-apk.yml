@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     env:
-      APP_VARIANT: preview
+      APP_VARIANT: development
       EXPO_NO_TELEMETRY: "1"
       T3CODE_MOBILE_UPDATES_ENABLED: "0"
     steps:
@@ -46,7 +46,9 @@ jobs:
         run: |
           apk=apps/mobile/android/app/build/outputs/apk/release/app-release.apk
           "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify "$apk"
-          "$ANDROID_HOME/build-tools/37.0.0/aapt" dump badging "$apk" | grep -F "package: name='com.t3tools.t3code.preview'"
+          "$ANDROID_HOME/build-tools/37.0.0/aapt" dump badging "$apk" | grep -F "package: name='com.t3tools.t3code.dev'"
+          fingerprint=$("$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --print-certs "$apk" | awk '/certificate SHA-256 digest:/ { print $NF; exit }')
+          test "$fingerprint" = fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c
           unzip -p "$apk" assets/app.config | jq -e '
             .extra as $e |
             ($e.clerk.publishableKey | strings | startswith("pk_")) and
