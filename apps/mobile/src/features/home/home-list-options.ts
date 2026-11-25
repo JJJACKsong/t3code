@@ -4,12 +4,33 @@ import { RegistryContext, useAtomValue } from "@effect/atom-react";
 import { Atom } from "effect/reactivity";
 import { createContext, createElement, useContext, useState, type PropsWithChildren } from "react";
 
+import { Platform } from "react-native";
+import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/shell";
 import type { ThreadListFilters } from "../../persistence/mobile-preferences";
 import { saveMobilePreferences } from "../../state/preferences";
 import { useAtomCommand } from "../../state/use-atom-command";
 import type { HomeProjectSortOrder } from "./homeThreadList";
 
+export type ThreadOrigin = NonNullable<ThreadListFilters["origin"]>;
+
+export function filterThreadOrigin(
+  threads: readonly EnvironmentThreadShell[],
+  origin: ThreadOrigin,
+) {
+  if (origin === "all") return threads;
+  return threads.filter((thread) => {
+    const delegated =
+      thread.delegatedFrom != null ||
+      thread.workflowRun != null ||
+      thread.lineage.workflowStep === true ||
+      thread.lineage.relationshipToParent === "subagent";
+    if (delegated) return origin === "agent";
+    return thread.source.createdBy === origin;
+  });
+}
+
 export interface HomeListOptions {
+  readonly origin: ThreadOrigin;
   readonly selectedEnvironmentId: EnvironmentId | null;
   readonly selectedProjectKey: string | null;
   readonly projectSortOrder: HomeProjectSortOrder;
@@ -21,6 +42,7 @@ export interface ResolvedHomeListOptions extends HomeListOptions {
 
 function defaultHomeListOptions(filters?: ThreadListFilters): HomeListOptions {
   return {
+    origin: Platform.OS === "android" ? (filters?.origin ?? "user") : "all",
     selectedEnvironmentId: filters?.environmentId ?? null,
     selectedProjectKey: filters?.projectKey ?? null,
     projectSortOrder:
@@ -58,10 +80,12 @@ export function HomeListOptionsProvider({
     registry.set(optionsAtom, next);
     if (
       next.selectedEnvironmentId !== current.selectedEnvironmentId ||
+      next.origin !== current.origin ||
       next.selectedProjectKey !== current.selectedProjectKey
     ) {
       void savePreferences({
         threadListFilters: {
+          ...(Platform.OS === "android" ? { origin: next.origin } : {}),
           environmentId: next.selectedEnvironmentId,
           projectKey: next.selectedProjectKey,
         },
@@ -104,6 +128,7 @@ export function useHomeListOptions(availableEnvironmentIds: ReadonlySet<Environm
   };
   return {
     options: resolvedOptions,
+    setOrigin: (origin: ThreadOrigin) => updateOptions({ origin }),
     setSelectedEnvironmentId,
     setSelectedProjectKey,
     setProjectSortOrder,

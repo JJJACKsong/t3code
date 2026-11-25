@@ -5675,5 +5675,10 @@
   "1a1beecff68a6e61": "Google 계정 확인",
   "99451a5d2d40440f": "{by}에서 철회했습니다.",
   "3ee30a50b70fffab": "{by}에서 철회했습니다: {reason}",
-  "201490988858b511": "{by}에서 철회함"
+  "201490988858b511": "{by}에서 철회함",
+  "6569dea514bffe6e": "Started by me",
+  "54364fc5c7705053": "Started by agents",
+  "5cba2c5bf39f6de2": "All threads",
+  "d56048449b96d70a": "Thread origin",
+  "6b2f84884072ae82": "Context · {used} / {limit} tokens"
 }

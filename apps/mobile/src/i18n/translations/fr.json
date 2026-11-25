@@ -5691,5 +5691,10 @@
   "1a1beecff68a6e61": "Vérifier le compte Google",
   "99451a5d2d40440f": "Retirée par {by}.",
   "3ee30a50b70fffab": "Retirée par {by} : {reason}",
-  "201490988858b511": "retirée par {by}"
+  "201490988858b511": "retirée par {by}",
+  "6569dea514bffe6e": "Started by me",
+  "54364fc5c7705053": "Started by agents",
+  "5cba2c5bf39f6de2": "All threads",
+  "d56048449b96d70a": "Thread origin",
+  "6b2f84884072ae82": "Context · {used} / {limit} tokens"
 }

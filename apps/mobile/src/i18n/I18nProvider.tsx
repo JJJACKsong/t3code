@@ -56,9 +56,10 @@ function readSystemLocales(): ReadonlyArray<string> {
 
 export function useLanguagePreference(): string {
   const preferences = useAtomValue(mobilePreferencesAtom);
+  const defaultLanguage = Platform.OS === "android" ? "zh" : DEFAULT_LOCALE;
   return AsyncResult.isSuccess(preferences)
-    ? (preferences.value.language ?? DEFAULT_LOCALE)
-    : DEFAULT_LOCALE;
+    ? (preferences.value.language ?? defaultLanguage)
+    : defaultLanguage;
 }
 
 /** Translates the app into the saved language; "system" follows the device. Mounted once in App. */

@@ -66,6 +66,7 @@ export type IssueSavedView = typeof IssueSavedView.Type;
 const isIssueSavedView = Schema.is(IssueSavedView);
 
 const ThreadListFilters = Schema.Struct({
+  origin: Schema.optional(Schema.Literals(["user", "agent", "all"])),
   environmentId: Schema.NullOr(EnvironmentId),
   projectKey: Schema.NullOr(Schema.String),
 });
@@ -166,7 +167,7 @@ export interface Preferences {
   /** Hardware-keyboard Return behavior in the composer. */
   readonly composerEnterBehavior?: ComposerEnterBehavior;
   readonly followUpBehavior?: FollowUpBehavior;
-  /** The client `language` setting: a locale code or "system". Unset means English. */
+  /** The client `language` setting: a locale code or "system". Android defaults to Chinese when unset. */
   readonly language?: string;
   readonly microphones?: ReadonlyArray<MicrophoneEntry>;
   readonly projectGroupingEnabled?: boolean;

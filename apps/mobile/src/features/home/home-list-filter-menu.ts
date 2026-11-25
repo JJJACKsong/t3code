@@ -8,6 +8,8 @@ import type { AppBarMenuItem } from "../../components/ui/AppBar.types";
 import { m, type MessageResolver } from "../../i18n/messages";
 import type { WorkspaceEnvironment } from "../../state/workspaceModel";
 
+import type { ThreadOrigin } from "./home-list-options";
+
 export interface HomeListFilterMenuEnvironment {
   readonly environmentId: EnvironmentId;
   readonly label: string;
@@ -33,6 +35,9 @@ export interface HomeListFilterMenuProject {
 
 export function buildHomeListFilterMenuItems(
   props: {
+    readonly originFilter?:
+      | { value: ThreadOrigin; change: (origin: ThreadOrigin) => void }
+      | undefined;
     readonly environments: ReadonlyArray<HomeListFilterMenuEnvironment>;
     readonly projects: ReadonlyArray<HomeListFilterMenuProject>;
     readonly selectedEnvironmentId: EnvironmentId | null;
@@ -86,5 +91,23 @@ export function buildHomeListFilterMenuItems(
     });
   }
 
+  const filter = props.originFilter;
+  if (filter) {
+    const labels = {
+      user: resolve(msg("Started by me")),
+      agent: resolve(msg("Started by agents")),
+      all: resolve(msg("All threads")),
+    };
+    items.unshift({
+      id: "origin",
+      title: resolve(msg("Thread origin")),
+      items: (["user", "agent", "all"] as const).map((origin) => ({
+        id: `origin:${origin}`,
+        title: labels[origin],
+        selected: filter.value === origin,
+        onPress: () => filter.change(origin),
+      })),
+    });
+  }
   return items;
 }

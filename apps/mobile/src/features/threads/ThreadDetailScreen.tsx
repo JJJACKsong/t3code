@@ -1,3 +1,5 @@
+import type { ContextWindowSnapshot } from "@t3tools/client-runtime/state/context-window";
+import { AppText } from "../../components/ui/AppText";
 import { ChildThreadApprovals } from "./ChildThreadApprovals";
 import { errorDisplayMessage } from "@t3tools/client-runtime/errors";
 import { useOpenThreadInspector } from "./thread-inspector-navigation";
@@ -251,6 +253,7 @@ export interface ThreadDetailScreenProps {
   readonly environmentLabel: string | null;
   readonly feedbackSubmissions: ReadonlyArray<CodexFeedbackSubmission>;
   readonly onDismissFeedback: (id: MessageId) => void;
+  readonly contextWindow?: ContextWindowSnapshot | null;
   readonly selectedThreadFeed: ReadonlyArray<ThreadFeedEntry>;
   readonly pendingHandoff?: HandoffEndpoints | null;
   readonly activityRun: ThreadFeedLatestRun | null;
@@ -1927,6 +1930,14 @@ function ThreadDetailBody(
                     </View>
                   ) : (
                     <>
+                      {Platform.OS === "android" && !props.draftMode ? (
+                        <AppText className="px-4 pb-1 text-right text-xs text-foreground-muted">
+                          {gt("Context · {used} / {limit} tokens", {
+                            used: props.contextWindow?.usedTokens?.toLocaleString() ?? "?",
+                            limit: props.contextWindow?.maxTokens?.toLocaleString() ?? "?",
+                          })}
+                        </AppText>
+                      ) : null}
                       <ThreadComposer
                         isDraft={Boolean(props.draftMode)}
                         canOperateThread={props.canOperateThread}

@@ -11,7 +11,7 @@ import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/shell
 import { pickableProjectGroups } from "@t3tools/client-runtime/state/project-grouping";
 
 import { useProjects } from "../../state/entities";
-import { steadyNavigationThreadShellsAtom } from "../../state/threads";
+import { steadyAllThreadShellsAtom, steadyNavigationThreadShellsAtom } from "../../state/threads";
 import { useLaunchingThreads, usePendingNewTasks } from "../../state/use-pending-new-tasks";
 import { useWorkspaceState } from "../../state/workspace";
 import { useSavedRemoteConnections } from "../../state/use-remote-environment-registry";
@@ -21,7 +21,7 @@ import {
 } from "../layout/AdaptiveWorkspaceLayout";
 import { AndroidHomeFabLayout } from "./AndroidHomeFab";
 import { HomeScreen } from "./HomeScreen";
-import { useHomeListOptions } from "./home-list-options";
+import { filterThreadOrigin, useHomeListOptions } from "./home-list-options";
 import {
   runWhenHomeCovered,
   useAtomValueWhileVisible,
@@ -52,9 +52,6 @@ export function HomeRouteScreen() {
   const projects = useProjects();
   // Stop rebuilding the streaming thread list while Thread covers Home.
   const visible = useHomeRouteVisible();
-  const threads = useLaunchingThreads(
-    useAtomValueWhileVisible(steadyNavigationThreadShellsAtom, visible),
-  );
   const { environments: workspaceEnvironments, state: catalogState } = useWorkspaceState();
   const { savedConnectionsById } = useSavedRemoteConnections();
   const navigation = useNavigation();
@@ -116,9 +113,19 @@ export function HomeRouteScreen() {
   );
   const {
     options: listOptions,
+    setOrigin,
     setSelectedEnvironmentId,
     setSelectedProjectKey,
   } = useHomeListOptions(availableEnvironmentIds);
+  const includeNestedThreads = Platform.OS === "android";
+  const shellsAtom = includeNestedThreads
+    ? steadyAllThreadShellsAtom
+    : steadyNavigationThreadShellsAtom;
+  const launches = useLaunchingThreads(useAtomValueWhileVisible(shellsAtom, visible));
+  const threads = useMemo(
+    () => filterThreadOrigin(launches, listOptions.origin),
+    [launches, listOptions.origin],
+  );
   const selectedEnvironmentId = listOptions.selectedEnvironmentId;
   const projectScopes = useMemo(
     () =>
@@ -173,11 +180,18 @@ export function HomeRouteScreen() {
             accessibilityLabel: gt("Search threads"),
           }}
           filter={{
-            customized: selectedEnvironmentId !== null || selectedProjectKey !== null,
+            customized:
+              (Platform.OS === "android" && listOptions.origin !== "user") ||
+              selectedEnvironmentId !== null ||
+              selectedProjectKey !== null,
             items: buildHomeListFilterMenuItems(
               {
                 environments,
                 projects: projectFilterOptions,
+                originFilter:
+                  Platform.OS === "android"
+                    ? { value: listOptions.origin, change: setOrigin }
+                    : undefined,
                 selectedEnvironmentId,
                 selectedProjectKey,
                 onEnvironmentChange: setSelectedEnvironmentId,
@@ -223,7 +237,8 @@ export function HomeRouteScreen() {
             });
           }}
           onStartNewTask={startNewTask}
-          pendingTasks={pendingTasks}
+          includeNestedThreads={includeNestedThreads}
+          pendingTasks={listOptions.origin === "agent" ? [] : pendingTasks}
           projectGroupingMode={listOptions.projectGroupingMode}
           projects={projects}
           projectSortOrder={listOptions.projectSortOrder}

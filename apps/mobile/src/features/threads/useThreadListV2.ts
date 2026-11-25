@@ -45,6 +45,7 @@ function observeInbox(
  * its own memo boundary to preserve the list's identity during unrelated navigation renders.
  */
 export function useThreadListV2(input: {
+  readonly includeNestedThreads?: boolean;
   readonly threads: LayoutInput["threads"];
   readonly pendingTasks: ReadonlyArray<PendingNewTask>;
   readonly environmentId: EnvironmentId | null;
@@ -136,6 +137,7 @@ export function useThreadListV2(input: {
     () =>
       buildThreadListV2Items({
         pendingOrder: input.pendingOrder,
+        includeNestedThreads: input.includeNestedThreads === true,
         threads: threads.filter((thread) => thread.archivedAt === null),
         environmentId: input.environmentId,
         projectRefs: input.projectRefs,
@@ -168,6 +170,7 @@ export function useThreadListV2(input: {
       }),
     [
       input.pendingOrder,
+      input.includeNestedThreads,
       threads,
       input.environmentId,
       input.projectRefs,

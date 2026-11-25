@@ -5,7 +5,11 @@ import * as Dialog from "../components/ui/Dialog";
 import { AuthOrchestrationOperateScope } from "@t3tools/contracts";
 import { readEnvironmentScope } from "./session";
 import { useAtomValue } from "@effect/atom-react";
-import { compactBeforeSendTokens } from "@t3tools/client-runtime/state/context-window";
+import {
+  compactBeforeSendTokens,
+  latestProviderTurnTokenUsage,
+  deriveLatestContextWindowSnapshot,
+} from "@t3tools/client-runtime/state/context-window";
 import { threadRuntimeIsActive } from "@t3tools/client-runtime/state/shell";
 import { threadSteersDuringCompaction } from "@t3tools/client-runtime/state/thread-workflows";
 import { resolvePendingHandoff } from "@t3tools/client-runtime/handoff";
@@ -447,6 +451,16 @@ export function useThreadComposerState(input: {
     );
   })();
   const runlessWorkActive = runlessWorkStartedAt !== null;
+
+  const projection = selectedThreadProjection?.projection;
+  const providerThread = projection?.providerThreads.find(
+    (thread) => thread.id === projection.thread.activeProviderThreadId,
+  );
+  const contextWindow = deriveLatestContextWindowSnapshot(
+    selectedThreadVisibleTurnItems,
+    latestProviderTurnTokenUsage(projection?.providerTurns ?? [], projection, providerThread),
+    providerThread,
+  );
 
   const providerSubagentStatus = selectedThreadProjection
     ? deriveProviderSubagentStatus(selectedThreadProjection.projection)
@@ -1041,6 +1055,7 @@ export function useThreadComposerState(input: {
   };
 
   return {
+    contextWindow,
     feedbackSubmissions,
     dismissFeedback,
     selectedThreadFeed,

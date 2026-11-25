@@ -5668,5 +5668,10 @@
   "1a1beecff68a6e61": "Google アカウントを確認",
   "99451a5d2d40440f": "{by} が取り下げました。",
   "3ee30a50b70fffab": "{by} が取り下げました: {reason}",
-  "201490988858b511": "{by} が取り下げ"
+  "201490988858b511": "{by} が取り下げ",
+  "6569dea514bffe6e": "Started by me",
+  "54364fc5c7705053": "Started by agents",
+  "5cba2c5bf39f6de2": "All threads",
+  "d56048449b96d70a": "Thread origin",
+  "6b2f84884072ae82": "Context · {used} / {limit} tokens"
 }

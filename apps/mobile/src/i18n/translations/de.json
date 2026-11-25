@@ -5697,5 +5697,10 @@
   "1a1beecff68a6e61": "Google-Konto bestätigen",
   "99451a5d2d40440f": "Zurückgezogen von {by}.",
   "3ee30a50b70fffab": "Zurückgezogen von {by}: {reason}",
-  "201490988858b511": "zurückgezogen von {by}"
+  "201490988858b511": "zurückgezogen von {by}",
+  "6569dea514bffe6e": "Started by me",
+  "54364fc5c7705053": "Started by agents",
+  "5cba2c5bf39f6de2": "All threads",
+  "d56048449b96d70a": "Thread origin",
+  "6b2f84884072ae82": "Context · {used} / {limit} tokens"
 }

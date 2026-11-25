@@ -5699,5 +5699,10 @@
   "1a1beecff68a6e61": "Verify Google account",
   "99451a5d2d40440f": "Withdrawn by {by}.",
   "3ee30a50b70fffab": "Withdrawn by {by}: {reason}",
-  "201490988858b511": "withdrawn by {by}"
+  "201490988858b511": "withdrawn by {by}",
+  "6569dea514bffe6e": "Started by me",
+  "54364fc5c7705053": "Started by agents",
+  "5cba2c5bf39f6de2": "All threads",
+  "d56048449b96d70a": "Thread origin",
+  "6b2f84884072ae82": "Context · {used} / {limit} tokens"
 }

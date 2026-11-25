@@ -712,6 +712,7 @@ function sortSettledThreadsReusingLast(
 }
 
 export function buildThreadListV2Items(input: {
+  readonly includeNestedThreads?: boolean;
   readonly pendingOrder?: PendingThreadOrder | null;
   readonly threads: ReadonlyArray<EnvironmentThreadShell>;
   readonly environmentId: EnvironmentId | null;
@@ -767,7 +768,7 @@ export function buildThreadListV2Items(input: {
   const listedThreads = input.threads.filter(
     (thread) =>
       thread.archivedAt === null &&
-      isListedThreadLineage(thread.lineage) &&
+      (input.includeNestedThreads === true || isListedThreadLineage(thread.lineage)) &&
       (input.environmentId === null || thread.environmentId === input.environmentId) &&
       (projectKeys === null || projectKeys.has(`${thread.environmentId}:${thread.projectId}`)),
   );

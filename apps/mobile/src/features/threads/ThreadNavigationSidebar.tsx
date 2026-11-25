@@ -26,7 +26,7 @@ import { AppText as Text } from "../../components/ui/AppText";
 import { Button } from "../../components/ui/Button";
 import { scopedProjectKey, scopedThreadKey } from "../../lib/scopedEntities";
 import { useProjects } from "../../state/entities";
-import { steadyNavigationThreadShellsAtom } from "../../state/threads";
+import { steadyAllThreadShellsAtom, steadyNavigationThreadShellsAtom } from "../../state/threads";
 import { useThreadSearch } from "../../state/queries";
 import { useThreadListV2ShelfPreferences } from "./use-thread-list-v2-shelf-preferences";
 import { useThreadListNow } from "./use-thread-list-now";
@@ -45,7 +45,7 @@ import { useSidebarRowThreadKey } from "./useSidebarRowThreadKey";
 import { useThreadJumpShortcuts } from "../keyboard/threadKeyboardShortcuts";
 import { requestThreadMessageJump } from "./threadMessageJump";
 import { useThreadListSearchMatches } from "./useThreadListSearchMatches";
-import { useHomeListOptions } from "../home/home-list-options";
+import { filterThreadOrigin, useHomeListOptions } from "../home/home-list-options";
 import {
   buildHomeListFilterMenuItems,
   homeListFilterEnvironments,
@@ -130,8 +130,7 @@ function ThreadNavigationSidebarPane(props: ThreadNavigationSidebarProps) {
   const insets = useSafeAreaInsets();
   const { fabClearance, fabSize } = useAndroidControlSizing();
   const projects = useProjects();
-  const threads = useAtomValue(steadyNavigationThreadShellsAtom);
-  const selectedThreadKey = useSidebarRowThreadKey(props.selectedThreadKey);
+  const ancestorKey = useSidebarRowThreadKey(props.selectedThreadKey);
   const { environments: workspaceEnvironments, state: catalogState } = useWorkspaceState();
   const { savedConnectionsById } = useSavedRemoteConnections();
   const openSwipeableRef = useRef<SwipeableMethods | null>(null);
@@ -151,7 +150,6 @@ function ThreadNavigationSidebarPane(props: ThreadNavigationSidebarProps) {
     regenerateThreadTitle,
   } = useThreadListActions();
   const pendingTasks = usePendingNewTasks();
-  const launchingThreads = useLaunchingThreads(threads);
   const activeNewTask = useActiveNewTask();
   const queuedThreadKeys = useQueuedThreadKeys();
   const selectDetail = useSelectWorkspaceDetail();
@@ -162,8 +160,18 @@ function ThreadNavigationSidebarPane(props: ThreadNavigationSidebarProps) {
   const availableEnvironmentIds = new Set(
     environments.map((environment) => environment.environmentId),
   );
-  const { options, setSelectedEnvironmentId, setSelectedProjectKey } =
+  const { options, setOrigin, setSelectedEnvironmentId, setSelectedProjectKey } =
     useHomeListOptions(availableEnvironmentIds);
+  const includeNestedThreads = Platform.OS === "android";
+  const selectedThreadKey = includeNestedThreads ? props.selectedThreadKey : ancestorKey;
+  const shellsAtom = includeNestedThreads
+    ? steadyAllThreadShellsAtom
+    : steadyNavigationThreadShellsAtom;
+  const launches = useLaunchingThreads(useAtomValue(shellsAtom));
+  const threads = useMemo(
+    () => filterThreadOrigin(launches, options.origin),
+    [launches, options.origin],
+  );
   const searchEnvironmentIds =
     options.selectedEnvironmentId === null
       ? workspaceEnvironments
@@ -277,8 +285,9 @@ function ThreadNavigationSidebarPane(props: ThreadNavigationSidebarProps) {
     contentOnlyThreadKeys,
     olderSettledShelf,
   } = useThreadListV2({
-    threads: launchingThreads,
-    pendingTasks,
+    threads,
+    includeNestedThreads,
+    pendingTasks: options.origin === "agent" ? [] : pendingTasks,
     environmentId: options.selectedEnvironmentId,
     projectRefs: selectedProjectScope === null ? null : selectedProjectScope.projectRefs,
     searchQuery: props.searchQuery,
@@ -546,11 +555,16 @@ function ThreadNavigationSidebarPane(props: ThreadNavigationSidebarProps) {
         accessibilityLabel: gt("Search threads"),
       }}
       filter={{
-        customized: options.selectedEnvironmentId !== null || selectedProjectKey !== null,
+        customized:
+          (Platform.OS === "android" && options.origin !== "user") ||
+          options.selectedEnvironmentId !== null ||
+          selectedProjectKey !== null,
         items: buildHomeListFilterMenuItems(
           {
             environments,
             projects: projectFilterOptions,
+            originFilter:
+              Platform.OS === "android" ? { value: options.origin, change: setOrigin } : undefined,
             selectedEnvironmentId: options.selectedEnvironmentId,
             selectedProjectKey,
             onEnvironmentChange: setSelectedEnvironmentId,

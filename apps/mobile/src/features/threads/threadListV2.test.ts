@@ -1350,6 +1350,14 @@ it("excludes subagents from navigation, search and ordering while retaining user
     lineage: { parentThreadId: root.id, rootThreadId: root.id, relationshipToParent: "fork" },
   });
   const threads = [root, child, fork];
+  const nested = buildThreadListV2Items({
+    threads,
+    includeNestedThreads: true,
+    environmentId: null,
+    searchQuery: "Child",
+    now: NOW,
+  });
+  expect(nested.items.map((item) => item.thread.id)).toEqual([child.id]);
   expect(
     buildThreadListV2Items({ threads, environmentId: null, searchQuery: "", now: NOW }).items.map(
       (item) => item.thread.id,

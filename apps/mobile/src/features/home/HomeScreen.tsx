@@ -106,6 +106,7 @@ import { ThreadListFilters } from "./ThreadListFilters";
 import { deriveHomeEmptyState } from "./home-empty-state";
 
 interface HomeScreenProps {
+  readonly includeNestedThreads?: boolean;
   /** Whether this list is the one on screen; see `useHomeRouteVisible`. */
   readonly visible: boolean;
   readonly projects: ReadonlyArray<EnvironmentProject>;
@@ -209,7 +210,11 @@ export function HomeScreen(props: HomeScreenProps) {
   const columnMetrics = useNativeColumnLayoutMetrics();
   const activeNewTask = useActiveNewTask();
   const sidebarRowThreadKey = useSidebarRowThreadKey(primaryColumn?.selectedThreadKey ?? null);
-  const selectedThreadKey = activeNewTask ? null : sidebarRowThreadKey;
+  const selectedThreadKey = activeNewTask
+    ? null
+    : props.includeNestedThreads
+      ? (primaryColumn?.selectedThreadKey ?? null)
+      : sidebarRowThreadKey;
   const fullSwipeWidth = primaryColumn && columnMetrics ? columnMetrics.width - 20 : undefined;
   const queuedThreadKeys = useQueuedThreadKeys();
   const openSwipeableRef = useRef<SwipeableMethods | null>(null);
@@ -420,6 +425,7 @@ export function HomeScreen(props: HomeScreenProps) {
     olderSettledShelf,
   } = useThreadListV2({
     threads: props.threads,
+    includeNestedThreads: props.includeNestedThreads === true,
     pendingTasks: props.pendingTasks,
     environmentId: props.selectedEnvironmentId,
     projectRefs: v2ScopedProjectGroup === null ? null : v2ScopedProjectGroup.projectRefs,
