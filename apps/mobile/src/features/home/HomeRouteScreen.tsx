@@ -20,6 +20,7 @@ import {
   useWorkspacePaneState,
 } from "../layout/AdaptiveWorkspaceLayout";
 import { AndroidHomeFabLayout } from "./AndroidHomeFab";
+import { EnvironmentPager } from "./EnvironmentPager";
 import { HomeScreen } from "./HomeScreen";
 import { filterThreadOrigin, useHomeListOptions } from "./home-list-options";
 import {
@@ -202,53 +203,61 @@ export function HomeRouteScreen() {
           }}
         />
 
-        <HomeScreen
-          catalogState={catalogState}
+        <EnvironmentPager
           environments={environments}
-          onAddConnection={() => openSettings(navigation, "SettingsEnvironmentNew")}
-          onArchiveThread={archiveThread}
-          onDeleteThread={confirmDeleteThread}
-          onSettleThread={settleThread}
-          onSnoozeThread={snoozeThread}
-          onUnsnoozeThread={unsnoozeThread}
-          onUnsettleThread={unsettleThread}
-          onPinThread={pinThread}
-          onUnpinThread={unpinThread}
-          onSetThreadAutoSettle={setThreadAutoSettle}
-          onMoveThread={moveThread}
-          onRenameThread={renameThread}
-          onRegenerateThreadTitle={regenerateThreadTitle}
-          onEnvironmentChange={setSelectedEnvironmentId}
-          onProjectChange={setSelectedProjectKey}
-          onOpenSettings={() => selectTab("settings")}
-          onSearchQueryChange={setSearchQuery}
-          onSelectThread={handleSelectThread}
-          onSelectPendingTask={openPendingTask}
-          onDeletePendingTask={confirmDeletePendingTask}
-          onNewThreadOnBranch={handleNewThreadOnBranch}
-          onNewThreadInProject={(project) => {
-            selectThreadRoute({
-              draft: {
-                requestId: uuidv4(),
-                environmentId: String(project.environmentId),
-                projectId: String(project.id),
-                title: project.title,
-              },
-            });
-          }}
-          onStartNewTask={startNewTask}
-          includeNestedThreads={includeNestedThreads}
-          pendingTasks={listOptions.origin === "agent" ? [] : pendingTasks}
-          projectGroupingMode={listOptions.projectGroupingMode}
-          projects={projects}
-          projectSortOrder={listOptions.projectSortOrder}
-          savedConnectionsById={savedConnectionsById}
-          searchQuery={searchQuery}
-          selectedEnvironmentId={selectedEnvironmentId}
-          selectedProjectKey={selectedProjectKey}
-          threads={threads}
-          visible={visible}
-        />
+          selected={selectedEnvironmentId}
+          onChange={setSelectedEnvironmentId}
+        >
+          {(pageId, active) => (
+            <HomeScreen
+              catalogState={catalogState}
+              environments={environments}
+              onAddConnection={() => openSettings(navigation, "SettingsEnvironmentNew")}
+              onArchiveThread={archiveThread}
+              onDeleteThread={confirmDeleteThread}
+              onSettleThread={settleThread}
+              onSnoozeThread={snoozeThread}
+              onUnsnoozeThread={unsnoozeThread}
+              onUnsettleThread={unsettleThread}
+              onPinThread={pinThread}
+              onUnpinThread={unpinThread}
+              onSetThreadAutoSettle={setThreadAutoSettle}
+              onMoveThread={moveThread}
+              onRenameThread={renameThread}
+              onRegenerateThreadTitle={regenerateThreadTitle}
+              onEnvironmentChange={setSelectedEnvironmentId}
+              onProjectChange={setSelectedProjectKey}
+              onOpenSettings={() => selectTab("settings")}
+              onSearchQueryChange={setSearchQuery}
+              onSelectThread={handleSelectThread}
+              onSelectPendingTask={openPendingTask}
+              onDeletePendingTask={confirmDeletePendingTask}
+              onNewThreadOnBranch={handleNewThreadOnBranch}
+              onNewThreadInProject={(project) => {
+                selectThreadRoute({
+                  draft: {
+                    requestId: uuidv4(),
+                    environmentId: String(project.environmentId),
+                    projectId: String(project.id),
+                    title: project.title,
+                  },
+                });
+              }}
+              onStartNewTask={startNewTask}
+              includeNestedThreads={includeNestedThreads}
+              pendingTasks={listOptions.origin === "agent" ? [] : pendingTasks}
+              projectGroupingMode={listOptions.projectGroupingMode}
+              projects={projects}
+              projectSortOrder={listOptions.projectSortOrder}
+              savedConnectionsById={savedConnectionsById}
+              searchQuery={searchQuery}
+              selectedEnvironmentId={pageId}
+              selectedProjectKey={selectedProjectKey}
+              threads={threads}
+              visible={active && visible}
+            />
+          )}
+        </EnvironmentPager>
         <ThreadUndoNotice visible={visible} />
       </>
     </AndroidHomeFabLayout>

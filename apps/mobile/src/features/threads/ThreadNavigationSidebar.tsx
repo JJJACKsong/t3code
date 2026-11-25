@@ -1,3 +1,5 @@
+import type { EnvironmentId } from "@t3tools/contracts";
+import { EnvironmentPager } from "../home/EnvironmentPager";
 import { useGT, useMessages } from "gt-react-native";
 import { useActiveNewTask } from "../../state/active-new-task";
 import { ThreadUndoNotice } from "../home/ThreadUndoNotice";
@@ -111,16 +113,39 @@ interface ThreadNavigationSidebarProps {
 }
 
 export function ThreadNavigationSidebar(props: ThreadNavigationSidebarProps) {
+  const { environments } = useWorkspaceState();
+  const choices = homeListFilterEnvironments(environments);
+  const { options, setSelectedEnvironmentId } = useHomeListOptions(
+    new Set(choices.map((e) => e.environmentId)),
+  );
   return (
     <ThreadPrDemandProvider visible={props.visible}>
       <WorkspaceSidebarColumn width={props.width}>
-        <ThreadNavigationSidebarPane {...props} />
+        <EnvironmentPager
+          environments={choices}
+          selected={options.selectedEnvironmentId}
+          onChange={setSelectedEnvironmentId}
+        >
+          {(pageId, active) => (
+            <ThreadNavigationSidebarPane
+              {...props}
+              pageId={pageId}
+              activePage={active}
+              visible={active && props.visible}
+            />
+          )}
+        </EnvironmentPager>
       </WorkspaceSidebarColumn>
     </ThreadPrDemandProvider>
   );
 }
 
-function ThreadNavigationSidebarPane(props: ThreadNavigationSidebarProps) {
+function ThreadNavigationSidebarPane(
+  props: ThreadNavigationSidebarProps & {
+    pageId: EnvironmentId | null;
+    activePage: boolean;
+  },
+) {
   const gt = useGT();
   const messages = useMessages();
   const floatingTabsEnabled = useAndroidFloatingTabs();
@@ -160,8 +185,13 @@ function ThreadNavigationSidebarPane(props: ThreadNavigationSidebarProps) {
   const availableEnvironmentIds = new Set(
     environments.map((environment) => environment.environmentId),
   );
-  const { options, setOrigin, setSelectedEnvironmentId, setSelectedProjectKey } =
-    useHomeListOptions(availableEnvironmentIds);
+  const {
+    options: listOptions,
+    setOrigin,
+    setSelectedEnvironmentId,
+    setSelectedProjectKey,
+  } = useHomeListOptions(availableEnvironmentIds);
+  const options = { ...listOptions, selectedEnvironmentId: props.pageId };
   const includeNestedThreads = Platform.OS === "android";
   const selectedThreadKey = includeNestedThreads ? props.selectedThreadKey : ancestorKey;
   const shellsAtom = includeNestedThreads
@@ -624,7 +654,7 @@ function ThreadNavigationSidebarPane(props: ThreadNavigationSidebarProps) {
   if (Platform.OS === "ios") {
     return (
       <>
-        {header}
+        {props.activePage ? header : null}
         <View className="flex-1">
           <SwipeableScrollGateProvider enabled={swipeEnabled}>
             <GestureDetector gesture={sidebarScrollGesture}>
@@ -715,7 +745,7 @@ function ThreadNavigationSidebarPane(props: ThreadNavigationSidebarProps) {
           </SwipeableScrollGateProvider>
         )}
       </View>
-      {header}
+      {props.activePage ? header : null}
       <ThreadUndoNotice visible={props.visible} />
     </View>
   );

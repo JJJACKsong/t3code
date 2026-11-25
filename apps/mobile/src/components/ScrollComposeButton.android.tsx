@@ -20,7 +20,6 @@ export function ScrollComposeButton(props: {
   readonly expanded: boolean;
   readonly environmentLabel?: string;
   readonly onEnvironmentPress?: () => void;
-  readonly environmentAbove?: boolean;
   readonly onPress: () => void;
   readonly size?: number;
   readonly className?: string;
@@ -42,7 +41,7 @@ export function ScrollComposeButton(props: {
     <View
       pointerEvents="box-none"
       className={props.className}
-      style={[props.style, { left: 20, height: fabSize }]}
+      style={[props.style, { left: 16, height: fabSize }]}
     >
       <View
         pointerEvents="none"
@@ -98,11 +97,9 @@ export function ScrollComposeButton(props: {
           style={{
             position: "absolute",
             left: 0,
-            right: props.environmentAbove
-              ? 0
-              : (props.expanded ? buttonWidth * scale : fabSize) + 8,
-            bottom: props.environmentAbove ? fabSize + 8 : 0,
-            alignItems: "flex-end",
+            right: (props.expanded ? buttonWidth * scale : fabSize) + 8,
+            bottom: 0,
+            alignItems: "flex-start",
           }}
         >
           <Pressable

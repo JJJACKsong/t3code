@@ -12,7 +12,6 @@ import {
   type AndroidHomeFabLayout as SharedAndroidHomeFabLayout,
 } from "./AndroidHomeFab.shared";
 import { useWorkspaceState } from "../../state/workspace";
-import { GestureDetector, usePanGesture } from "react-native-gesture-handler";
 import { useGT } from "gt-react-native";
 import { adjacentHomeEnvironment, homeListFilterEnvironments } from "./home-list-filter-menu";
 import { useHomeListOptions } from "./home-list-options";
@@ -45,22 +44,6 @@ export function AndroidHomeFabLayout(props: ComponentProps<typeof SharedAndroidH
     setSelectedEnvironmentId(adjacentHomeEnvironment(choices, options.selectedEnvironmentId, step));
   };
   const swipeEnabled = !props.disabled && choices.length > 0;
-  const gesture = usePanGesture({
-    enabled: swipeEnabled,
-    runOnJS: true,
-    activeOffsetX: [-24, 24],
-    failOffsetY: [-14, 14],
-    maxPointers: 1,
-    onDeactivate: (event) => {
-      if (
-        !event.canceled &&
-        Math.abs(event.translationX) >= 52 &&
-        Math.abs(event.translationX) > Math.abs(event.translationY) * 1.5
-      ) {
-        advance(event.translationX < 0 ? 1 : -1);
-      }
-    },
-  });
   const [expanded, setExpanded] = useState(true);
   const { scale, fabSize } = useAndroidControlSizing();
   const enabledTabs = useEnabledNavigationTabs();
@@ -92,11 +75,7 @@ export function AndroidHomeFabLayout(props: ComponentProps<typeof SharedAndroidH
     <View className="flex-1" onLayout={(event) => setLayoutWidth(event.nativeEvent.layout.width)}>
       <WorkspaceTabsContext value={context}>
         <HomeEnvironmentSwipeContext value={swipeEnabled}>
-          <GestureDetector gesture={gesture}>
-            <View collapsable={false} className="flex-1">
-              <FabScrollContext value={onScroll}>{props.children}</FabScrollContext>
-            </View>
-          </GestureDetector>
+          <FabScrollContext value={onScroll}>{props.children}</FabScrollContext>
         </HomeEnvironmentSwipeContext>
       </WorkspaceTabsContext>
       {!props.disabled &&
@@ -107,7 +86,6 @@ export function AndroidHomeFabLayout(props: ComponentProps<typeof SharedAndroidH
           key={`${appearance.baseFontSize}:${fontScale}:${layoutWidth}`}
           environmentLabel={selected?.label ?? gt("All environments")}
           onEnvironmentPress={() => advance(1)}
-          environmentAbove={floatingTabsEnabled}
           size={size}
           expanded={floatingTabsEnabled ? false : expanded}
           onPress={props.onStartNewTask}
@@ -116,7 +94,7 @@ export function AndroidHomeFabLayout(props: ComponentProps<typeof SharedAndroidH
             floatingTabsEnabled
               ? {
                   right: FLOATING_TABS.edge,
-                  bottom: insets.bottom + FLOATING_TABS.bottom,
+                  bottom: bottomClearance,
                 }
               : androidHomeFabPosition(insets.bottom, props.sidebar)
           }
