@@ -30,6 +30,11 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Install native build dependencies
         run: '"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37.0" "build-tools;37.0.0" "ndk;27.1.12297006" "cmake;3.22.1"'
+      - name: Configure T3 Connect from upstream public client settings
+        run: |
+          for key in T3CODE_CLERK_PUBLISHABLE_KEY T3CODE_CLERK_JWT_TEMPLATE T3CODE_RELAY_URL; do
+            grep -E "^${key}=.+" .env.example >> "$GITHUB_ENV"
+          done
       - run: pnpm exec expo prebuild --platform android --no-install
         working-directory: apps/mobile
       - name: Build standalone ARM64 APK
@@ -42,6 +47,11 @@ jobs:
           apk=apps/mobile/android/app/build/outputs/apk/release/app-release.apk
           "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify "$apk"
           "$ANDROID_HOME/build-tools/37.0.0/aapt" dump badging "$apk" | grep -F "package: name='com.t3tools.t3code.preview'"
+          unzip -p "$apk" assets/app.config | jq -e '
+            .extra as $e |
+            ($e.clerk.publishableKey | strings | startswith("pk_")) and
+            ($e.clerk.jwtTemplate | strings | length > 0) and
+            ($e.relay.url | strings | startswith("https://"))' >/dev/null
           cp "$apk" t3code-android-zh-arm64.apk
       - uses: actions/upload-artifact@v4
         with:
