@@ -113,8 +113,8 @@ export function SidebarDragBoundary(props: {
 export function SidebarSectionHeader(props: {
   marker: "working-header" | "snoozed-header" | "settled-header";
   label: string;
-  /** A muted trailing count. */
-  count: number;
+  /** A muted trailing count, when known. */
+  count: number | null;
   className?: string;
   dragging?: boolean;
   isDropTarget?: boolean;

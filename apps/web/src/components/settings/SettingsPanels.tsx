@@ -151,6 +151,8 @@ const SIDEBAR_PROJECT_SORT_ORDER_LABELS: Record<SidebarProjectSortOrder, string>
 };
 const isSidebarProjectSortOrder = Schema.is(SidebarProjectSortOrder);
 
+const defaultInterfaceLanguage = isElectron ? "zh" : DEFAULT_UNIFIED_SETTINGS.language;
+
 const TIMESTAMP_FORMAT_LABELS = {
   locale: msg("System default"),
   "12-hour": msg("12-hour"),
@@ -528,7 +530,7 @@ export function useSettingsRestore(onRestored?: () => void) {
     DEFAULT_UNIFIED_SETTINGS.environmentIdentificationMode
       ? [gt("Environment identification")]
       : []),
-    ...(settings.language !== DEFAULT_UNIFIED_SETTINGS.language ? [gt("Language")] : []),
+    ...(settings.language !== defaultInterfaceLanguage ? [gt("Language")] : []),
     ...(settings.timestampFormat !== DEFAULT_UNIFIED_SETTINGS.timestampFormat
       ? [gt("Time format")]
       : []),
@@ -715,7 +717,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       htmlPreviewWidth: DEFAULT_UNIFIED_SETTINGS.htmlPreviewWidth,
       effortDisplay: DEFAULT_UNIFIED_SETTINGS.effortDisplay,
       mathRenderingEnabled: DEFAULT_UNIFIED_SETTINGS.mathRenderingEnabled,
-      language: DEFAULT_UNIFIED_SETTINGS.language,
+      language: defaultInterfaceLanguage,
       timestampFormat: DEFAULT_UNIFIED_SETTINGS.timestampFormat,
       notificationMode: DEFAULT_UNIFIED_SETTINGS.notificationMode,
       inAppNotificationsEnabled: DEFAULT_UNIFIED_SETTINGS.inAppNotificationsEnabled,
@@ -1140,12 +1142,12 @@ export function GeneralSettingsPanel() {
           {...setting("language")}
           description={<T>System default follows your browser or OS language.</T>}
           resetAction={
-            settings.language !== DEFAULT_UNIFIED_SETTINGS.language ? (
+            settings.language !== defaultInterfaceLanguage ? (
               <SettingResetButton
                 ariaLabel={gt("Reset language to default")}
                 onClick={() =>
                   updateSettings({
-                    language: DEFAULT_UNIFIED_SETTINGS.language,
+                    language: defaultInterfaceLanguage,
                   })
                 }
               />

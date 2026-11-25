@@ -31,6 +31,7 @@ import {
   splitSharedServerPatch,
   supportsSharedSettingsSync,
 } from "@t3tools/client-runtime/state/shared-settings";
+import { isElectron } from "~/env";
 import { ensureLocalApi } from "~/localApi";
 import { subscribeBrowserClientSettingsWrites } from "~/clientPersistenceStorage";
 import {
@@ -73,7 +74,10 @@ type UnifiedSettingsPatch = ServerSettingsPatch & ClientSettingsPatch;
 const clientSettingsListeners = new Set<() => void>();
 const clientSettingsHydrationListeners = new Set<() => void>();
 type ClientSettingsHydrationStatus = "pending" | "ready" | "failed" | "retrying";
-let clientSettingsSnapshot = DEFAULT_CLIENT_SETTINGS;
+const initialClientSettings = isElectron
+  ? { ...DEFAULT_CLIENT_SETTINGS, language: "zh" }
+  : DEFAULT_CLIENT_SETTINGS;
+let clientSettingsSnapshot = initialClientSettings;
 let clientSettingsHydrationStatus: ClientSettingsHydrationStatus = "pending";
 let clientSettingsHydrationPromise: Promise<void> | null = null;
 let clientSettingsHydrationGeneration = 0;
@@ -318,7 +322,7 @@ export function useClientSettingsHydrationStatus(): ClientSettingsHydrationStatu
   );
 }
 
-const getDefaultClientSettings = () => DEFAULT_CLIENT_SETTINGS;
+const getDefaultClientSettings = () => initialClientSettings;
 const selectWholeClientSettings = (settings: ClientSettings) => settings;
 
 /** Structurally equal selections retain their reference and skip rendering. */
@@ -814,7 +818,7 @@ export function updateClientSettings(patch: ClientSettingsPatch): Promise<void> 
 
 export function __resetClientSettingsPersistenceForTests(): void {
   clientSettingsHydrationGeneration += 1;
-  clientSettingsSnapshot = DEFAULT_CLIENT_SETTINGS;
+  clientSettingsSnapshot = initialClientSettings;
   clientSettingsHydrationStatus = "pending";
   clientSettingsHydrationPromise = null;
   clientSettingsPersistenceQueue = Promise.resolve();

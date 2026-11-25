@@ -1,4 +1,4 @@
-import { presentThreadShell } from "@t3tools/client-runtime/state/models";
+import { filterThreadOrigin, presentThreadShell } from "@t3tools/client-runtime/state/models";
 import { threadKey } from "@t3tools/client-runtime/state/entities";
 import { isThreadWorking as isSidebarThreadWorking } from "@t3tools/client-runtime/state/thread-inbox";
 import * as DateTime from "effect/DateTime";
@@ -9,6 +9,7 @@ import { AsyncResult } from "effect/reactivity";
 import {
   ADD_PROJECT_SCOPE_ITEM_VALUE,
   filterSidebarProjectScopeItems,
+  filterSidebarV2VisibleThreads,
   shouldCreateNewThreadInCurrentProject,
   resolveScopedNewThreadProjectRef,
   deleteSelectedThreadEntries,
@@ -1855,4 +1856,28 @@ describe("filterSidebarProjectScopeItems", () => {
     expect(filter("")).toEqual([ADD_PROJECT_SCOPE_ITEM_VALUE, "all", "p1"]);
     expect(filter("project")).toEqual(["p1"]);
   });
+});
+
+it("combines environment scope with the creator filter and keeps matching delegated rows", () => {
+  const local = makeThreadFixture({ environmentId: localEnvironmentId });
+  const remote = makeThreadFixture({ environmentId: EnvironmentId.make("remote") });
+  const child = {
+    ...remote,
+    id: ThreadId.make("child"),
+    delegatedFrom: {
+      environmentId: local.environmentId,
+      threadId: local.id,
+      title: local.title,
+    },
+  };
+  const delegated = new Set([threadKey(scopeThreadRef(child.environmentId, child.id))]);
+  const rows = [local, remote, child];
+  const scope = new Set([`${remote.environmentId}:${remote.projectId}`]);
+  expect(
+    filterSidebarV2VisibleThreads(filterThreadOrigin(rows, "user"), scope, delegated, true),
+  ).toEqual([remote]);
+  expect(
+    filterSidebarV2VisibleThreads(filterThreadOrigin(rows, "agent"), scope, delegated, true),
+  ).toEqual([child]);
+  expect(filterSidebarV2VisibleThreads(rows, scope, delegated)).toEqual([remote]);
 });

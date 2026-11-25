@@ -428,3 +428,19 @@ export function formatWorkingDurationLabel(
     msg("{hours}h {minutes}m", { hours: Math.floor(minutes / 60), minutes: minutes % 60 }),
   );
 }
+
+export function filterThreadOrigin(
+  threads: readonly EnvironmentThreadShell[],
+  origin: "all" | "user" | "agent",
+) {
+  if (origin === "all") return threads;
+  return threads.filter((thread) => {
+    const delegated =
+      thread.delegatedFrom != null ||
+      thread.workflowRun != null ||
+      thread.lineage.workflowStep === true ||
+      thread.lineage.relationshipToParent === "subagent";
+    if (delegated) return origin === "agent";
+    return thread.source.createdBy === origin;
+  });
+}

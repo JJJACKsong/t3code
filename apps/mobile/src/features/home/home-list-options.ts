@@ -5,7 +5,6 @@ import { Atom } from "effect/reactivity";
 import { createContext, createElement, useContext, useState, type PropsWithChildren } from "react";
 
 import { Platform } from "react-native";
-import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/shell";
 import type { ThreadListFilters } from "../../persistence/mobile-preferences";
 import { saveMobilePreferences } from "../../state/preferences";
 import { useAtomCommand } from "../../state/use-atom-command";
@@ -13,21 +12,7 @@ import type { HomeProjectSortOrder } from "./homeThreadList";
 
 export type ThreadOrigin = NonNullable<ThreadListFilters["origin"]>;
 
-export function filterThreadOrigin(
-  threads: readonly EnvironmentThreadShell[],
-  origin: ThreadOrigin,
-) {
-  if (origin === "all") return threads;
-  return threads.filter((thread) => {
-    const delegated =
-      thread.delegatedFrom != null ||
-      thread.workflowRun != null ||
-      thread.lineage.workflowStep === true ||
-      thread.lineage.relationshipToParent === "subagent";
-    if (delegated) return origin === "agent";
-    return thread.source.createdBy === origin;
-  });
-}
+export { filterThreadOrigin } from "@t3tools/client-runtime/state/models";
 
 export interface HomeListOptions {
   readonly origin: ThreadOrigin;

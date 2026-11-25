@@ -95,6 +95,8 @@ import {
   squashAtomCommandFailure,
   type AtomCommandResult,
 } from "@t3tools/client-runtime/state/runtime";
+import { filterThreadOrigin } from "@t3tools/client-runtime/state/models";
+import { localEnvironmentIdAtom } from "../state/primaryEnvironment";
 import { isElectron } from "../env";
 import {
   resolveShortcutCommand,
@@ -430,6 +432,7 @@ function routeThreadOnly(
 
 // Separate hooks cache maps independently of later Sidebar hooks and preserve dnd-kit inputs.
 function useSidebarThreads(input: {
+  readonly allThreadsBeforeOriginFilter: readonly EnvironmentThreadShell[] | undefined;
   readonly projectScopeKey: string | null;
   readonly scopedProjectKeys: ReadonlySet<string> | null;
   readonly serverConfigs: ReadonlyMap<EnvironmentId, EnvironmentServerConfig>;
@@ -518,8 +521,11 @@ function useSidebarThreads(input: {
   });
   const listedSettledThreads = settledThreads.filter(olderSettledShelf.isListed);
   useOlderSettledShelfGrowth(olderSettledShelf, listedSettledThreads);
-  const settledCount =
-    settledThreads.length + olderSettledShelf.unloadedCount(partition.visibleThreads);
+  const unloadedCount = olderSettledShelf.unloadedCount(
+    input.allThreadsBeforeOriginFilter ?? partition.visibleThreads,
+  );
+  const settledCount = settledThreads.length + unloadedCount;
+  const settledCountKnown = input.allThreadsBeforeOriginFilter === undefined || unloadedCount === 0;
   const visibleSettledThreads = (() => {
     const visible = listedSettledThreads.slice(0, settledVisibleCount);
     if (
@@ -594,6 +600,7 @@ function useSidebarThreads(input: {
     ],
     settledVisibleCount,
     settledCount,
+    settledCountKnown,
     olderSettledShelf,
     hiddenSettledCount: Math.max(0, settledCount - visibleSettledThreads.length),
     showMoreSettled: () =>
@@ -645,7 +652,12 @@ function partitionSidebarThreads(input: SidebarThreadPartitionInput) {
     sortActiveBySend,
   } = input;
   const preciseNow = new Date().toISOString();
-  const visible = filterSidebarV2VisibleThreads(threads, scopedProjectKeys, delegatedUnderParent);
+  const visible = filterSidebarV2VisibleThreads(
+    threads,
+    scopedProjectKeys,
+    delegatedUnderParent,
+    isElectron,
+  );
   const inboxObservation = inboxReturns.observe(workingShelfEnabled ? threads : null);
   const pinned: EnvironmentThreadShell[] = [];
   const active: EnvironmentThreadShell[] = [];
@@ -825,13 +837,16 @@ function isOptimisticDropReleased(input: {
 }
 
 // Build maps in a hook so the compiler can prove they are frozen and cache them.
-function useSidebarLookups() {
+function useSidebarLookups(includeEnvironment?: (id: string) => boolean) {
   const gt = useGT();
-  const projects = useProjects();
+  const allProjects = useProjects();
+  const projects = includeEnvironment
+    ? allProjects.filter((p) => includeEnvironment(p.environmentId))
+    : allProjects;
   const environments = useEnvironmentIdentities();
   const serverConfigs = useServerConfigs();
   const providerEntriesByEnvironment = useAtomValue(sidebarProviderEntriesAtom);
-  const projectGroups = useSidebarProjectGroups();
+  const projectGroups = useSidebarProjectGroups(includeEnvironment);
   const environmentLabelById = new Map(
     environments.map((environment) => [environment.environmentId, environment.label] as const),
   );
@@ -926,9 +941,28 @@ function readRouteThreadKey(router: AnyRouter): string | null {
   return ref === null ? null : scopedThreadKey(ref);
 }
 
+const environmentScopeSchema = Schema.Literals(["all", "local", "remote"]);
+const threadOriginSchema = Schema.Literals(["all", "user", "agent"]);
+
 export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReveal }) {
   const gt = useGT();
   const messages = useMessages();
+  const localId = useAtomValue(localEnvironmentIdAtom);
+  const [environmentScope, setEnvironmentScope] = useLocalStorage(
+    "desktop.sidebar.environment",
+    "all",
+    environmentScopeSchema,
+  );
+  const [savedOrigin, setOrigin] = useLocalStorage(
+    "desktop.sidebar.origin",
+    "user",
+    threadOriginSchema,
+  );
+  const origin = isElectron ? savedOrigin : "all";
+  const includeEnvironment =
+    isElectron && environmentScope !== "all"
+      ? (id: string) => (environmentScope === "local" ? id === localId : id !== localId)
+      : undefined;
   const {
     projects,
     serverConfigs,
@@ -939,7 +973,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     projectDisplayNameByKey,
     projectGroupByScopeKey,
     projectScopeItems: lookupProjectScopeItems,
-  } = useSidebarLookups();
+  } = useSidebarLookups(includeEnvironment);
   const delegatedUnderParent = useDelegatedUnderParent();
   const router = useRouter();
   const { isMobile, setOpenMobile } = useSidebar();
@@ -1046,7 +1080,10 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   const threadSearchInputRef = useRef<HTMLInputElement>(null);
   const [threadSearchQuery, setThreadSearchQuery] = useState("");
   const [searchHighlightKey, setSearchHighlightKey] = useState<string | null>(null);
-  const connectedEnvironmentIds = useConnectedEnvironmentIds();
+  const allConnectedEnvironmentIds = useConnectedEnvironmentIds();
+  const connectedEnvironmentIds = includeEnvironment
+    ? allConnectedEnvironmentIds.filter(includeEnvironment)
+    : allConnectedEnvironmentIds;
   const queuePendingFileDrop = useSidebarPendingFileDropStore((s) => s.queuePendingFileDrop);
   const clearPendingFileDrop = useSidebarPendingFileDropStore((s) => s.clearPendingFileDrop);
   const [renamingThreadRef, setRenamingThreadRef] = useState<ScopedThreadRef | null>(null);
@@ -1097,10 +1134,13 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
 
   // A selection made under one scope can hold threads the next scope hides.
   // The viewport outlives the scope and does not anchor, so a new list starts at the top.
-  const setProjectScopeKeys = (keys: readonly string[]) => {
+  const resetScopeSelection = () => {
     clearSelection();
-    setPersistedProjectScopeKeys(keys);
     scrollSidebarToTop(sidebarContentRef.current);
+  };
+  const setProjectScopeKeys = (keys: readonly string[]) => {
+    resetScopeSelection();
+    setPersistedProjectScopeKeys(keys);
   };
   // A scope whose project is gone reads as all projects once every snapshot has
   // loaded. The stored keys are left alone, so the scope returns with its project.
@@ -1128,7 +1168,11 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
             ),
           ),
         );
-  const threads = useQuietThreadShells();
+  const allThreads = useQuietThreadShells();
+  const threads = filterThreadOrigin(
+    includeEnvironment ? allThreads.filter((t) => includeEnvironment(t.environmentId)) : allThreads,
+    origin,
+  );
   const promotingDraftThreadKeys = usePromotingDraftThreadKeys();
   const listedThreads =
     promotingDraftThreadKeys.length === 0
@@ -1141,7 +1185,9 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   const routeRowThreadKey =
     routeThreadRef === null
       ? null
-      : scopedThreadKey(resolveListedAncestorThreadRef(routeThreadRef, threads));
+      : scopedThreadKey(
+          isElectron ? routeThreadRef : resolveListedAncestorThreadRef(routeThreadRef, threads),
+        );
   const isSearchingThreads = threadSearchQuery.trim().length > 0;
   // The open draft's first send names its thread in place; a finalized draft reached by
   // navigation resolves through its redirect instead, and still reveals.
@@ -1206,7 +1252,9 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   });
   const scopedProjectGroups = revealWidensScope ? [] : chosenProjectGroups;
   const scopedProjectRefs = scopedProjectGroups.flatMap((project) => project.memberProjectRefs);
-  const scopedProjectKeys = revealWidensScope ? null : chosenScopeProjectKeys;
+  const scopedProjectKeys =
+    (revealWidensScope ? null : chosenScopeProjectKeys) ??
+    (includeEnvironment ? new Set(projects.map((p) => `${p.environmentId}:${p.id}`)) : null);
   const threadSearch = useThreadSearch(
     connectedEnvironmentIds,
     threadSearchQuery,
@@ -1217,6 +1265,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   const routeDraftIdForRows = routeTarget?.kind === "draft" ? routeTarget.draftId : null;
   const draftTerminalLabels = useDraftTerminalLabels();
   const visibleDraftSessionCount = useComposerDraftStore((store) => {
+    if (origin === "agent") return 0;
     let count = 0;
     for (const [draftKey, session] of Object.entries(store.draftThreadsByThreadKey)) {
       if (session.promotedTo != null) {
@@ -1346,6 +1395,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     searchableThreads,
     settledVisibleCount,
     settledCount,
+    settledCountKnown,
     olderSettledShelf,
     hiddenSettledCount,
     showMoreSettled,
@@ -1370,6 +1420,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     pinnedKeysById,
     activeKeysById,
   } = useSidebarThreads({
+    allThreadsBeforeOriginFilter: origin !== "all" ? allThreads : undefined,
     projectScopeKey,
     scopedProjectKeys,
     serverConfigs,
@@ -1468,11 +1519,12 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   const settledThreadKeysRef = useRef(settledThreadKeys);
   const snoozedThreadKeysRef = useRef(snoozedThreadKeys);
 
-  const { draftIds, routeDraftComposer } = useSidebarDrafts(
+  const { draftIds: scopedDraftIds, routeDraftComposer } = useSidebarDrafts(
     scopedProjectKeys,
     routeDraftIdForRows,
     draftTerminalLabels,
   );
+  const draftIds = origin === "agent" ? EMPTY_DRAFT_IDS : scopedDraftIds;
   // Draft rows sit above the threads, so jumps and traversal reach them first.
   // Search hides them, so they drop out while it is open.
   const listedDraftIds = isSearchingThreads ? EMPTY_DRAFT_IDS : draftIds;
@@ -3338,6 +3390,38 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
               activeSearchResultIndex={activeSearchResultIndex}
               onClearSearch={clearThreadSearch}
             />
+            {isElectron && (
+              <div className="flex gap-1 px-2 pb-1 text-xs">
+                <select
+                  className="min-w-0 flex-1 rounded border bg-background px-1 py-1"
+                  aria-label={gt("Workspace environment")}
+                  value={environmentScope}
+                  onChange={(event) => {
+                    resetScopeSelection();
+                    setEnvironmentScope(
+                      Schema.decodeUnknownSync(environmentScopeSchema)(event.target.value),
+                    );
+                  }}
+                >
+                  <option value="all">{gt("All environments")}</option>
+                  <option value="local">{gt("Local workspaces")}</option>
+                  <option value="remote">{gt("Other environments")}</option>
+                </select>
+                <select
+                  className="min-w-0 flex-1 rounded border bg-background px-1 py-1"
+                  aria-label={gt("Thread origin")}
+                  value={origin}
+                  onChange={(event) => {
+                    resetScopeSelection();
+                    setOrigin(Schema.decodeUnknownSync(threadOriginSchema)(event.target.value));
+                  }}
+                >
+                  <option value="user">{gt("Started by me")}</option>
+                  <option value="agent">{gt("Started by agent")}</option>
+                  <option value="all">{gt("All threads")}</option>
+                </select>
+              </div>
+            )}
           </SidebarGroup>
         }
       >
@@ -3757,7 +3841,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                                   workingThreads.length + snoozedThreads.length === 0 && "mt-auto",
                                 )}
                                 label={gt("Settled", { $context: "sidebar section" })}
-                                count={settledCount}
+                                count={settledCountKnown ? settledCount : null}
                                 dragging={from !== null}
                                 isDropTarget={dragTargetSection === "settled"}
                                 toggle={{
@@ -3809,12 +3893,14 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                             ? gt("Loading")
                             : olderSettledShelf.failed
                               ? gt("Could not load older threads. Retry")
-                              : gt(
-                                  "{count, plural, one {Show {count} more} other {Show {count} more}}",
-                                  {
-                                    count: Math.min(hiddenSettledCount, SETTLED_TAIL_PAGE_COUNT),
-                                  },
-                                )}
+                              : !settledCountKnown
+                                ? gt("Show more")
+                                : gt(
+                                    "{count, plural, one {Show {count} more} other {Show {count} more}}",
+                                    {
+                                      count: Math.min(hiddenSettledCount, SETTLED_TAIL_PAGE_COUNT),
+                                    },
+                                  )}
                         </button>
                       </li>
                     ) : null}
