@@ -12,10 +12,13 @@ jobs:
     env:
       APP_VARIANT: preview
       EXPO_NO_TELEMETRY: "1"
+      T3CODE_MOBILE_UPDATES_ENABLED: "0"
     steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
+      - name: Check out source
+        run: |
+          git init .
+          git fetch --depth=1 "https://github.com/$GITHUB_REPOSITORY.git" "$GITHUB_SHA"
+          git checkout --detach FETCH_HEAD
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -23,7 +26,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
-      - uses: pnpm/action-setup@v4
+      - run: corepack enable
       - run: pnpm install --frozen-lockfile
       - uses: android-actions/setup-android@v3
       - run: sdkmanager "platforms;android-37.0" "build-tools;37.0.0" "ndk;27.1.12297006" "cmake;3.22.1"
