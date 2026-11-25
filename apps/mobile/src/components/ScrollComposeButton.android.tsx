@@ -1,3 +1,4 @@
+import { AppText } from "./ui/AppText";
 import { NativeThemeHost } from "./ui/NativeThemeHost.android";
 import { Box, ExtendedFloatingActionButton, Icon, Text } from "@expo/ui/jetpack-compose";
 import {
@@ -17,6 +18,9 @@ import { resolveScaledTextRole } from "../lib/appearancePreferences";
 /** Keep the animated width and icon positioning entirely inside Compose, not Yoga. */
 export function ScrollComposeButton(props: {
   readonly expanded: boolean;
+  readonly environmentLabel?: string;
+  readonly onEnvironmentPress?: () => void;
+  readonly environmentAbove?: boolean;
   readonly onPress: () => void;
   readonly size?: number;
   readonly className?: string;
@@ -88,6 +92,47 @@ export function ScrollComposeButton(props: {
           </Box>
         </NativeThemeHost>
       </View>
+      {props.environmentLabel !== undefined && (
+        <View
+          pointerEvents="box-none"
+          style={{
+            position: "absolute",
+            left: 0,
+            right: props.environmentAbove
+              ? 0
+              : (props.expanded ? buttonWidth * scale : fabSize) + 8,
+            bottom: props.environmentAbove ? fabSize + 8 : 0,
+            alignItems: "flex-end",
+          }}
+        >
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={props.environmentLabel}
+            onPress={props.onEnvironmentPress}
+            android_ripple={{ foreground: true }}
+            style={{
+              height: fabSize,
+              maxWidth: "100%",
+              justifyContent: "center",
+              paddingHorizontal: 14,
+              backgroundColor: colors["--color-primary"],
+              borderRadius: 16 * scale,
+              overflow: "hidden",
+            }}
+          >
+            <AppText
+              numberOfLines={1}
+              style={{
+                color: colors["--color-primary-foreground"],
+                fontSize: typography.fontSize,
+                fontWeight: "500",
+              }}
+            >
+              {props.environmentLabel}
+            </AppText>
+          </Pressable>
+        </View>
+      )}
       {/* The visual host is wider than the button; only this target intercepts list touches. */}
       <Pressable
         onPress={props.onPress}

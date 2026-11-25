@@ -28,6 +28,16 @@ export function homeListFilterEnvironments(environments: ReadonlyArray<Workspace
   );
 }
 
+export function adjacentHomeEnvironment(
+  environments: ReadonlyArray<HomeListFilterMenuEnvironment>,
+  current: EnvironmentId | null,
+  step: 1 | -1,
+): EnvironmentId | null {
+  const ids = [null, ...environments.map((environment) => environment.environmentId)];
+  const position = Math.max(0, ids.indexOf(current));
+  return ids[(position + step + ids.length) % ids.length] ?? null;
+}
+
 export interface HomeListFilterMenuProject {
   readonly key: string;
   readonly label: string;

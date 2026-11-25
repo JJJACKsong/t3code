@@ -137,6 +137,7 @@ function resolveSecondaryAction(input: {
 }
 
 /** Keep the scroll gate in context so scroll start cannot re-render every row and its subscriptions. */
+export const HomeEnvironmentSwipeContext = createContext(false);
 const SwipeableScrollGateContext = createContext(true);
 // Swipeable rebuilds its native pan gesture whenever its config changes identity, so the props
 // that feed it stay stable across row re-renders such as selection.
@@ -266,7 +267,8 @@ export function ThreadSwipeable(props: ThreadSwipeableProps) {
   const fullSwipeAction =
     props.fullSwipeAction ?? (props.secondaryAction === undefined ? "delete" : "primary");
   const close = useCallback(() => swipeableRef.current?.close(), []);
-  const gateEnabled = use(SwipeableScrollGateContext);
+  const environmentSwipeEnabled = use(HomeEnvironmentSwipeContext);
+  const gateEnabled = use(SwipeableScrollGateContext) && !environmentSwipeEnabled;
   const mountedRef = useRef(true);
   const dismissalRef = useRef<{ finished: Promise<void>; restore: () => void } | null>(null);
   const pendingDismissRef = useRef<{ id: number; resolve: () => void } | null>(null);

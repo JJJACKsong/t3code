@@ -12,6 +12,11 @@ import {
   type AndroidHomeFabLayout as SharedAndroidHomeFabLayout,
 } from "./AndroidHomeFab.shared";
 import { useWorkspaceState } from "../../state/workspace";
+import { GestureDetector, usePanGesture } from "react-native-gesture-handler";
+import { useGT } from "gt-react-native";
+import { adjacentHomeEnvironment, homeListFilterEnvironments } from "./home-list-filter-menu";
+import { useHomeListOptions } from "./home-list-options";
+import { HomeEnvironmentSwipeContext } from "./thread-swipe-actions";
 import { FabScrollContext } from "./FabScrollContext";
 import { updateFabScroll } from "./fab-scroll";
 import { useAndroidControlSizing } from "../../components/ui/useAndroidControlSizing";
@@ -29,7 +34,33 @@ export function AndroidHomeFabLayout(props: ComponentProps<typeof SharedAndroidH
   const { appearance } = useAppearancePreferences();
   const { fontScale } = useWindowDimensions();
   const [layoutWidth, setLayoutWidth] = useState<number | null>(null);
-  const { state } = useWorkspaceState();
+  const { state, environments } = useWorkspaceState();
+  const gt = useGT();
+  const choices = homeListFilterEnvironments(environments);
+  const { options, setSelectedEnvironmentId } = useHomeListOptions(
+    new Set(choices.map((choice) => choice.environmentId)),
+  );
+  const selected = choices.find((choice) => choice.environmentId === options.selectedEnvironmentId);
+  const advance = (step: 1 | -1) => {
+    setSelectedEnvironmentId(adjacentHomeEnvironment(choices, options.selectedEnvironmentId, step));
+  };
+  const swipeEnabled = !props.disabled && choices.length > 0;
+  const gesture = usePanGesture({
+    enabled: swipeEnabled,
+    runOnJS: true,
+    activeOffsetX: [-24, 24],
+    failOffsetY: [-14, 14],
+    maxPointers: 1,
+    onDeactivate: (event) => {
+      if (
+        !event.canceled &&
+        Math.abs(event.translationX) >= 52 &&
+        Math.abs(event.translationX) > Math.abs(event.translationY) * 1.5
+      ) {
+        advance(event.translationX < 0 ? 1 : -1);
+      }
+    },
+  });
   const [expanded, setExpanded] = useState(true);
   const { scale, fabSize } = useAndroidControlSizing();
   const enabledTabs = useEnabledNavigationTabs();
@@ -60,7 +91,13 @@ export function AndroidHomeFabLayout(props: ComponentProps<typeof SharedAndroidH
   return (
     <View className="flex-1" onLayout={(event) => setLayoutWidth(event.nativeEvent.layout.width)}>
       <WorkspaceTabsContext value={context}>
-        <FabScrollContext value={onScroll}>{props.children}</FabScrollContext>
+        <HomeEnvironmentSwipeContext value={swipeEnabled}>
+          <GestureDetector gesture={gesture}>
+            <View collapsable={false} className="flex-1">
+              <FabScrollContext value={onScroll}>{props.children}</FabScrollContext>
+            </View>
+          </GestureDetector>
+        </HomeEnvironmentSwipeContext>
       </WorkspaceTabsContext>
       {!props.disabled &&
       (!props.sidebar || floatingTabsEnabled) &&
@@ -68,6 +105,9 @@ export function AndroidHomeFabLayout(props: ComponentProps<typeof SharedAndroidH
       layoutWidth !== null ? (
         <ScrollComposeButton
           key={`${appearance.baseFontSize}:${fontScale}:${layoutWidth}`}
+          environmentLabel={selected?.label ?? gt("All environments")}
+          onEnvironmentPress={() => advance(1)}
+          environmentAbove={floatingTabsEnabled}
           size={size}
           expanded={floatingTabsEnabled ? false : expanded}
           onPress={props.onStartNewTask}

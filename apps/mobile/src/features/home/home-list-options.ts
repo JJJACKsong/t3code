@@ -43,7 +43,7 @@ export interface ResolvedHomeListOptions extends HomeListOptions {
 function defaultHomeListOptions(filters?: ThreadListFilters): HomeListOptions {
   return {
     origin: Platform.OS === "android" ? (filters?.origin ?? "user") : "all",
-    selectedEnvironmentId: filters?.environmentId ?? null,
+    selectedEnvironmentId: Platform.OS === "android" ? null : (filters?.environmentId ?? null),
     selectedProjectKey: filters?.projectKey ?? null,
     projectSortOrder:
       DEFAULT_SIDEBAR_PROJECT_SORT_ORDER === "manual"
