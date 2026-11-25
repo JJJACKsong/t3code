@@ -28,8 +28,8 @@ jobs:
           node-version: "24"
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
-      - uses: android-actions/setup-android@v3
-      - run: sdkmanager "platforms;android-37.0" "build-tools;37.0.0" "ndk;27.1.12297006" "cmake;3.22.1"
+      - name: Install native build dependencies
+        run: '"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37.0" "build-tools;37.0.0" "ndk;27.1.12297006" "cmake;3.22.1"'
       - run: pnpm exec expo prebuild --platform android --no-install
         working-directory: apps/mobile
       - name: Build standalone ARM64 APK
