@@ -214,7 +214,12 @@ function SidebarUtilityItem({
       <Tooltip>
         <TooltipTrigger
           render={
-            <SidebarMenuButton aria-label={label} onClick={onClick} size="icon">
+            <SidebarMenuButton
+              aria-label={label}
+              onClick={onClick}
+              size="icon"
+              className="@max-[13.75rem]/sidebar-footer:size-7"
+            >
               {icon}
             </SidebarMenuButton>
           }
@@ -225,7 +230,12 @@ function SidebarUtilityItem({
   );
 }
 
-const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
+const SidebarUtilityMenu = memo(function SidebarUtilityMenu({
+  environmentScope,
+}: {
+  /** The desktop environment scope, in the free slot beside the utility icons. */
+  environmentScope?: ReactNode | undefined;
+}) {
   const navigate = useNavigate();
   const navigateToMainApp = useNavigateToMainApp();
   const gt = useGT();
@@ -269,7 +279,7 @@ const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
   };
 
   return (
-    <SidebarMenu className="flex-row items-center">
+    <SidebarMenu className="@container/sidebar-footer flex-row items-center">
       {isOnUtilityPage ? (
         <SidebarMenuItem className="min-w-0 flex-1">
           <SidebarMenuButton onClick={handleBackClick}>
@@ -305,6 +315,7 @@ const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
             label={gt("Usage")}
             onClick={handleUsageClick}
           />
+          {environmentScope}
         </>
       )}
       <SidebarThreadUndoNotice />
@@ -313,12 +324,16 @@ const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
   );
 });
 
-export const SidebarChromeFooter = memo(function SidebarChromeFooter() {
+export const SidebarChromeFooter = memo(function SidebarChromeFooter({
+  environmentScope,
+}: {
+  environmentScope?: ReactNode | undefined;
+}) {
   return (
     <SidebarFooter>
       <SidebarProviderUpdatePill />
       <SidebarUpdateArchitectureWarning />
-      <SidebarUtilityMenu />
+      <SidebarUtilityMenu environmentScope={environmentScope} />
     </SidebarFooter>
   );
 });

@@ -1,7 +1,7 @@
 import { useAtomValue } from "@effect/atom-react";
 import { msg, useMessages } from "gt-react";
 import { Undo2Icon } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState, type TransitionEvent } from "react";
 
 import {
   threadUndoLabel,
@@ -21,7 +21,11 @@ const SHORT_SUMMARY = {
   Discarded: msg("{count, plural, =1 {Discarded,} other {Discarded {count},}}"),
 };
 
-/** Fills the free space in the sidebar footer's utility row, so it never moves or covers the list. */
+/**
+ * Fills the free space in the sidebar footer's utility row, so it never moves or covers the list.
+ * `data-sidebar-undo-notice` marks the row for the environment pill, which yields the slot while
+ * a notice shows at cramped widths.
+ */
 export function SidebarThreadUndoNotice() {
   const notice = useThreadUndoNotice((state) => state.notice);
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
@@ -33,18 +37,33 @@ export function SidebarThreadUndoNotice() {
   const [shownSummary, setShownSummary] = useState(summary);
   if (summary && summary !== shownSummary) setShownSummary(summary);
   const text = summary ?? shownSummary;
+
+  // Neither transitionend nor transitioncancel is guaranteed: a clear before the fade's first
+  // frame, or reduced motion, leaves opacity at 0 with no transition left to end. This timer
+  // unmounts the row anyway, so it never keeps the slot the environment pill needs.
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- unmounts the row after its exit fade when no transitionend arrives; the timer clears on unmount.
+  useEffect(() => {
+    if (summary !== null || shownSummary === null) return;
+    const timer = window.setTimeout(() => setShownSummary(null), 250);
+    return () => window.clearTimeout(timer);
+  }, [summary, shownSummary]);
+
+  const fadeOut = (event: TransitionEvent<HTMLDivElement>) => {
+    if (!summary && event.target === event.currentTarget) setShownSummary(null);
+  };
+
   if (!text) return null;
 
   return (
     <SidebarMenuItem
       className="@container flex min-w-0 flex-1"
+      data-sidebar-undo-notice=""
       aria-hidden={!summary}
       inert={!summary}
     >
       <div
-        onTransitionEnd={(event) => {
-          if (!summary && event.target === event.currentTarget) setShownSummary(null);
-        }}
+        onTransitionEnd={fadeOut}
+        onTransitionCancel={fadeOut}
         // Reversed wrap: a summary that does not fit beside the undo button drops to a
         // second line that overflow hides, instead of truncating mid-word. Browse mode
         // reads the button first; the live announcement carries the full sentence.

@@ -262,6 +262,15 @@ import {
 import { SidebarContent, SidebarGroup, useSidebar } from "./ui/sidebar";
 import { SidebarChromeFooter, SidebarChromeHeader } from "./sidebar/SidebarChrome";
 import { SidebarHeaderIconButton, SidebarThreadHeader } from "./sidebar/SidebarThreadHeader";
+import { SidebarEnvironmentScopePill } from "./sidebar/SidebarEnvironmentScopePill";
+import { SidebarThreadOriginMenu } from "./sidebar/SidebarThreadOriginMenu";
+import {
+  buildSidebarEnvironmentOptions,
+  resolveSidebarEnvironmentScope,
+  SIDEBAR_ENVIRONMENT_SCOPE_LOCAL,
+  SIDEBAR_ENVIRONMENT_SCOPE_STORAGE_KEY,
+  sidebarThreadOriginSchema,
+} from "./sidebar/sidebarFilters.logic";
 import { TooltipProvider, TooltipScrollDismissArea } from "./ui/tooltip";
 import {
   composerDraftHasUserContent,
@@ -941,28 +950,35 @@ function readRouteThreadKey(router: AnyRouter): string | null {
   return ref === null ? null : scopedThreadKey(ref);
 }
 
-const environmentScopeSchema = Schema.Literals(["all", "local", "remote"]);
-const threadOriginSchema = Schema.Literals(["all", "user", "agent"]);
-
 export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReveal }) {
   const gt = useGT();
   const messages = useMessages();
   const localId = useAtomValue(localEnvironmentIdAtom);
-  const [environmentScope, setEnvironmentScope] = useLocalStorage(
-    "desktop.sidebar.environment",
-    "all",
-    environmentScopeSchema,
+  const primaryEnvironmentId = usePrimaryEnvironmentId();
+  const [storedEnvironmentScope, setEnvironmentScope] = useLocalStorage(
+    SIDEBAR_ENVIRONMENT_SCOPE_STORAGE_KEY,
+    SIDEBAR_ENVIRONMENT_SCOPE_LOCAL,
+    Schema.String,
   );
   const [savedOrigin, setOrigin] = useLocalStorage(
     "desktop.sidebar.origin",
     "user",
-    threadOriginSchema,
+    sidebarThreadOriginSchema,
   );
   const origin = isElectron ? savedOrigin : "all";
+  const environmentIdentities = useEnvironmentIdentities();
+  // The environment controls ship with the desktop app; a browser tab lists every environment.
+  const environmentScope = isElectron
+    ? resolveSidebarEnvironmentScope({
+        storedValue: storedEnvironmentScope,
+        environments: environmentIdentities,
+        localEnvironmentId: localId,
+        primaryEnvironmentId,
+      })
+    : { environmentId: null, isLoading: false };
+  const environmentScopeId = environmentScope.environmentId;
   const includeEnvironment =
-    isElectron && environmentScope !== "all"
-      ? (id: string) => (environmentScope === "local" ? id === localId : id !== localId)
-      : undefined;
+    environmentScopeId === null ? undefined : (id: string) => id === environmentScopeId;
   const {
     projects,
     serverConfigs,
@@ -1047,7 +1063,6 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   const newThreadContext = useHandleNewThread();
   // Row callbacks capture only the handler; the rest of the context changes with the route.
   const { handleNewThread } = newThreadContext;
-  const primaryEnvironmentId = usePrimaryEnvironmentId();
   const clearSelection = useThreadSelectionStore((s) => s.clearSelection);
   const setSelectionAnchor = useThreadSelectionStore((s) => s.setAnchor);
   const toggleThreadSelection = useThreadSelectionStore((s) => s.toggleThread);
@@ -1169,10 +1184,10 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
           ),
         );
   const allThreads = useQuietThreadShells();
-  const threads = filterThreadOrigin(
-    includeEnvironment ? allThreads.filter((t) => includeEnvironment(t.environmentId)) : allThreads,
-    origin,
-  );
+  const environmentThreads = includeEnvironment
+    ? allThreads.filter((thread) => includeEnvironment(thread.environmentId))
+    : allThreads;
+  const threads = filterThreadOrigin(environmentThreads, origin);
   const promotingDraftThreadKeys = usePromotingDraftThreadKeys();
   const listedThreads =
     promotingDraftThreadKeys.length === 0
@@ -1420,7 +1435,9 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     pinnedKeysById,
     activeKeysById,
   } = useSidebarThreads({
-    allThreadsBeforeOriginFilter: origin !== "all" ? allThreads : undefined,
+    // Counts the shelf's unloaded threads in the scope the list obeys, so another
+    // environment's threads never inflate this one's settled count.
+    allThreadsBeforeOriginFilter: origin !== "all" ? environmentThreads : undefined,
     projectScopeKey,
     scopedProjectKeys,
     serverConfigs,
@@ -3134,6 +3151,37 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       ? shortcutLabelForCommand(keybindings, "chat.newLocal")
       : undefined);
   const newThreadInProjectShortcutLabel = shortcutLabelForCommand(keybindings, "chat.newLocal");
+  // Desktop only: a browser tab lists every environment and every origin.
+  const environmentOptions = isElectron
+    ? buildSidebarEnvironmentOptions({
+        environments: environmentIdentities,
+        machineKinds: environmentMachineById,
+        connectedEnvironmentIds: allConnectedEnvironmentIds,
+        localEnvironmentId: localId,
+        primaryEnvironmentId,
+      })
+    : [];
+  const originFilter = isElectron ? (
+    <SidebarThreadOriginMenu
+      origin={origin}
+      onOriginChange={(next) => {
+        resetScopeSelection();
+        setOrigin(next);
+      }}
+    />
+  ) : undefined;
+  const environmentScopePill = isElectron ? (
+    <SidebarEnvironmentScopePill
+      scope={environmentScope}
+      options={environmentOptions}
+      localEnvironmentId={localId}
+      primaryEnvironmentId={primaryEnvironmentId}
+      onScopeChange={(storedValue) => {
+        resetScopeSelection();
+        setEnvironmentScope(storedValue);
+      }}
+    />
+  ) : undefined;
   return (
     <SidebarFolderDrop>
       <SidebarChromeHeader isElectron={isElectron} />
@@ -3389,39 +3437,8 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
               searchResultCount={threadSearchResults.length}
               activeSearchResultIndex={activeSearchResultIndex}
               onClearSearch={clearThreadSearch}
+              originFilter={originFilter}
             />
-            {isElectron && (
-              <div className="flex gap-1 px-2 pb-1 text-xs">
-                <select
-                  className="min-w-0 flex-1 rounded border bg-background px-1 py-1"
-                  aria-label={gt("Workspace environment")}
-                  value={environmentScope}
-                  onChange={(event) => {
-                    resetScopeSelection();
-                    setEnvironmentScope(
-                      Schema.decodeUnknownSync(environmentScopeSchema)(event.target.value),
-                    );
-                  }}
-                >
-                  <option value="all">{gt("All environments")}</option>
-                  <option value="local">{gt("Local workspaces")}</option>
-                  <option value="remote">{gt("Other environments")}</option>
-                </select>
-                <select
-                  className="min-w-0 flex-1 rounded border bg-background px-1 py-1"
-                  aria-label={gt("Thread origin")}
-                  value={origin}
-                  onChange={(event) => {
-                    resetScopeSelection();
-                    setOrigin(Schema.decodeUnknownSync(threadOriginSchema)(event.target.value));
-                  }}
-                >
-                  <option value="user">{gt("Started by me")}</option>
-                  <option value="agent">{gt("Started by agent")}</option>
-                  <option value="all">{gt("All threads")}</option>
-                </select>
-              </div>
-            )}
           </SidebarGroup>
         }
       >
@@ -3911,7 +3928,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
           ) : null}
         </SidebarGroup>
       </SidebarContent>
-      <SidebarChromeFooter />
+      <SidebarChromeFooter environmentScope={environmentScopePill} />
     </SidebarFolderDrop>
   );
 }
