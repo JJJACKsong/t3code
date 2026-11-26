@@ -56,6 +56,19 @@ describe("clientPersistenceStorage", () => {
     },
   );
 
+  it("decodes a missing language as Chinese without writing, and marks explicit saves", async () => {
+    const testWindow = getTestWindow();
+    testWindow.localStorage.setItem("t3code:client-settings:v1", '{"timestampFormat":"12-hour"}');
+    const write = vi.spyOn(testWindow.localStorage, "setItem");
+    const { readBrowserClientSettings, writeBrowserClientSettings, ZH_DEFAULT_MIGRATION_KEY } =
+      await import("./clientPersistenceStorage");
+    expect(readBrowserClientSettings()?.language).toBe("zh");
+    expect(write).not.toHaveBeenCalled();
+    writeBrowserClientSettings({ ...DEFAULT_CLIENT_SETTINGS, language: "en" });
+    expect(testWindow.localStorage.getItem(ZH_DEFAULT_MIGRATION_KEY)).toBe("1");
+    expect(readBrowserClientSettings()?.language).toBe("en");
+  });
+
   it("preserves saved settings across a transient read failure", async () => {
     const testWindow = getTestWindow();
     const settings = { ...DEFAULT_CLIENT_SETTINGS, timestampFormat: "12-hour" as const };

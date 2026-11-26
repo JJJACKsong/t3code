@@ -2,6 +2,7 @@ import { m } from "../i18n/messages";
 import { thrownErrorMessage } from "@t3tools/client-runtime/errors";
 import { useGT, useMessages } from "gt-react";
 import { ChildThreadApprovals } from "./chat/ChildThreadApprovals";
+import { ThreadContextWindowPill } from "./chat/ThreadContextWindowPill";
 import { draftSupportedRuntimeModes } from "./chat/runtimeModeConfig";
 import { workspaceAreaProps } from "../lib/workspaceFocus";
 import { sourceControlClients } from "@t3tools/client-runtime/source-control-clients";
@@ -3819,6 +3820,16 @@ export default function ChatView(props: ChatViewProps) {
                     }
                   >
                     <ChildThreadApprovals threadRef={activeThreadRef} />
+                    {isServerThread && !isDraftHeroState ? (
+                      <div className="pointer-events-none mb-1.5 flex items-center justify-end px-1">
+                        <ThreadContextWindowPill
+                          environmentId={activeThread.environmentId}
+                          threadId={activeThread.id}
+                          contextWindow={activeContextWindow}
+                          subagentCount={serverProjection?.subagents.length ?? 0}
+                        />
+                      </div>
+                    ) : null}
                     <div className="relative">
                       <ComposerSurface.Shell contextRow={showComposerContextStrip}>
                         <ComposerSurface.Host

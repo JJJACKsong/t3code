@@ -114,6 +114,26 @@ const withClientSettings = <A, E, R>(
   }).pipe(Effect.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer)));
 
 describe("DesktopClientSettings", () => {
+  it.effect.each(["en", "ja", "system", "zh"])(
+    "migrates %s only once and respects explicit English",
+    (language) =>
+      withClientSettings(
+        Effect.gen(function* () {
+          const env = yield* DesktopEnvironment.DesktopEnvironment;
+          const fs = yield* FileSystem.FileSystem;
+          const service = yield* DesktopClientSettings.DesktopClientSettings;
+          const expected = language === "en" ? "zh" : language;
+          yield* fs.makeDirectory(env.stateDir, { recursive: true });
+          yield* fs.writeFileString(env.clientSettingsPath, '{"language":"' + language + '"}');
+          assert.equal(Option.getOrThrow(yield* service.get).language, expected);
+          assert.isTrue(yield* fs.exists(env.stateDir + "/client-settings.zh-default-v1.applied"));
+          yield* service.set({ ...clientSettings, language: "en" });
+          const restarted = yield* DesktopClientSettings.make;
+          assert.equal(Option.getOrThrow(yield* restarted.get).language, "en");
+        }),
+      ),
+  );
+
   it.effect("saves through a symlinked client settings file without replacing the link", () =>
     withClientSettings(
       Effect.gen(function* () {

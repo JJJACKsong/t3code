@@ -1,6 +1,16 @@
 import * as Schema from "effect/Schema";
 
-import { ForwardCompatibleArray, NonNegativeInt, TrimmedNonEmptyString } from "./baseSchemas.ts";
+import {
+  ForwardCompatibleArray,
+  NonNegativeInt,
+  PositiveInt,
+  ThreadId,
+  RunId,
+  EnvironmentId,
+  TrimmedNonEmptyString,
+} from "./baseSchemas.ts";
+
+import { ProviderDriverKind, ProviderInstanceId } from "./providerInstance.ts";
 
 /** Bump for incompatible UsageSummary changes; skipped unknown array variants need no bump. */
 export const USAGE_CONTRACT_VERSION = 6 as const;
@@ -172,3 +182,166 @@ export class UsageReadError extends Schema.TaggedError<UsageReadError>()("UsageR
     return `Usage read failed (${this.reason}): ${this.detail}`;
   }
 }
+
+export const ThreadTokenDataSource = Schema.Literals([
+  "turn_usage",
+  "transcript",
+  "context_snapshot",
+  "workflow_summary",
+  "unavailable",
+]);
+export type ThreadTokenDataSource = typeof ThreadTokenDataSource.Type;
+
+export const ThreadTokenUsageStatus = Schema.Literals(["complete", "partial", "unavailable"]);
+export type ThreadTokenUsageStatus = typeof ThreadTokenUsageStatus.Type;
+
+export const ThreadTokenNodeKind = Schema.Literals([
+  "root",
+  "subagent_thread",
+  "native_subagent",
+  "workflow_agent",
+  "remote_subagent",
+]);
+export type ThreadTokenNodeKind = typeof ThreadTokenNodeKind.Type;
+
+export const ThreadTokenNodeOrigin = Schema.Literals([
+  "root",
+  "app_owned",
+  "provider_native",
+  "workflow",
+  "remote",
+]);
+export type ThreadTokenNodeOrigin = typeof ThreadTokenNodeOrigin.Type;
+
+export const ThreadTokenContextSnapshot = Schema.Struct({
+  usedTokens: NonNegativeInt,
+  maxTokens: Schema.NullOr(PositiveInt),
+  usedPercentage: Schema.NullOr(Schema.Number),
+  autoCompactThreshold: Schema.NullOr(PositiveInt),
+  updatedAt: Schema.NullOr(Schema.String),
+});
+export type ThreadTokenContextSnapshot = typeof ThreadTokenContextSnapshot.Type;
+
+export const ThreadTokenTurnEntry = Schema.Struct({
+  turnId: Schema.String,
+  runId: Schema.NullOr(RunId),
+  runOrdinal: Schema.NullOr(PositiveInt),
+  ordinal: PositiveInt,
+  status: Schema.String,
+  driver: ProviderDriverKind,
+  model: Schema.NullOr(Schema.String),
+  startedAt: Schema.NullOr(Schema.String),
+  completedAt: Schema.NullOr(Schema.String),
+  durationMs: Schema.NullOr(NonNegativeInt),
+  totals: UsageTokenTotals,
+  otherInputTokens: NonNegativeInt,
+  otherOutputTokens: NonNegativeInt,
+  totalTokens: NonNegativeInt,
+  contextUsedTokens: Schema.NullOr(NonNegativeInt),
+  contextMaxTokens: Schema.NullOr(PositiveInt),
+  costUsd: Schema.Number,
+  cacheSavingsUsd: Schema.Number,
+  costSource: UsageCostSource,
+  dataSource: ThreadTokenDataSource,
+  usageStatus: ThreadTokenUsageStatus,
+  hasSubagents: Schema.Boolean,
+});
+export type ThreadTokenTurnEntry = typeof ThreadTokenTurnEntry.Type;
+
+export const ThreadTokenAggregateSummary = Schema.Struct({
+  totals: UsageTokenTotals,
+  otherInputTokens: NonNegativeInt,
+  otherOutputTokens: NonNegativeInt,
+  totalTokens: NonNegativeInt,
+  cacheHitRate: Schema.NullOr(Schema.Number),
+  costUsd: Schema.Number,
+  cacheSavingsUsd: Schema.Number,
+  costSource: UsageCostSource,
+  turnCount: NonNegativeInt,
+  measuredTurnCount: NonNegativeInt,
+  durationMs: NonNegativeInt,
+  contextPeakTokens: Schema.NullOr(NonNegativeInt),
+  contextMaxTokens: Schema.NullOr(PositiveInt),
+});
+export type ThreadTokenAggregateSummary = typeof ThreadTokenAggregateSummary.Type;
+
+export const ThreadTokenModelBreakdown = Schema.Struct({
+  provider: ProviderDriverKind,
+  model: Schema.String,
+  selfTotals: UsageTokenTotals,
+  subagentTotals: UsageTokenTotals,
+  totalTotals: UsageTokenTotals,
+  otherInputTokens: NonNegativeInt,
+  otherOutputTokens: NonNegativeInt,
+  totalTokens: NonNegativeInt,
+  cacheHitRate: Schema.NullOr(Schema.Number),
+  costUsd: Schema.Number,
+  cacheSavingsUsd: Schema.Number,
+  costSource: UsageCostSource,
+  turnCount: NonNegativeInt,
+});
+export type ThreadTokenModelBreakdown = typeof ThreadTokenModelBreakdown.Type;
+
+export const ThreadTokenAnalyticsNode = Schema.Struct({
+  nodeId: Schema.String,
+  kind: ThreadTokenNodeKind,
+  origin: ThreadTokenNodeOrigin,
+  depth: NonNegativeInt,
+  parentNodeId: Schema.NullOr(Schema.String),
+  threadId: Schema.NullOr(ThreadId),
+  parentThreadId: Schema.NullOr(ThreadId),
+  title: Schema.String,
+  driver: ProviderDriverKind,
+  providerInstanceId: ProviderInstanceId,
+  model: Schema.NullOr(Schema.String),
+  status: Schema.String,
+  startedAt: Schema.NullOr(Schema.String),
+  completedAt: Schema.NullOr(Schema.String),
+  durationMs: Schema.NullOr(NonNegativeInt),
+  contextWindow: Schema.NullOr(ThreadTokenContextSnapshot),
+  contextPeakTokens: Schema.NullOr(NonNegativeInt),
+  totals: UsageTokenTotals,
+  otherInputTokens: NonNegativeInt,
+  otherOutputTokens: NonNegativeInt,
+  totalTokens: NonNegativeInt,
+  cacheHitRate: Schema.NullOr(Schema.Number),
+  costUsd: Schema.Number,
+  cacheSavingsUsd: Schema.Number,
+  costSource: UsageCostSource,
+  dataSource: ThreadTokenDataSource,
+  usageStatus: ThreadTokenUsageStatus,
+  turnCount: NonNegativeInt,
+  measuredTurnCount: NonNegativeInt,
+  subtreeTotalTokens: NonNegativeInt,
+  subtreeCostUsd: Schema.Number,
+  remoteTarget: Schema.optional(
+    Schema.Struct({ environmentId: EnvironmentId, threadId: ThreadId, label: Schema.String }),
+  ),
+  turns: Schema.Array(ThreadTokenTurnEntry),
+});
+export type ThreadTokenAnalyticsNode = typeof ThreadTokenAnalyticsNode.Type;
+
+export const OrchestrationV2GetThreadTokenAnalyticsInput = Schema.Struct({
+  threadId: ThreadId,
+  includeSubagents: Schema.optional(Schema.Boolean),
+});
+export type OrchestrationV2GetThreadTokenAnalyticsInput =
+  typeof OrchestrationV2GetThreadTokenAnalyticsInput.Type;
+
+export const OrchestrationV2ThreadTokenAnalytics = Schema.Struct({
+  generatedAt: Schema.String,
+  requestedThreadId: ThreadId,
+  rootThreadId: ThreadId,
+  parentThreadId: Schema.NullOr(ThreadId),
+  pricingStatus: UsagePricingStatus,
+  summary: Schema.Struct({
+    self: ThreadTokenAggregateSummary,
+    subagents: ThreadTokenAggregateSummary,
+    total: ThreadTokenAggregateSummary,
+    subagentCount: NonNegativeInt,
+    activeSubagentCount: NonNegativeInt,
+  }),
+  byModel: Schema.Array(ThreadTokenModelBreakdown),
+  nodes: Schema.Array(ThreadTokenAnalyticsNode),
+});
+export type OrchestrationV2ThreadTokenAnalytics = typeof OrchestrationV2ThreadTokenAnalytics.Type;

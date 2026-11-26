@@ -122,6 +122,12 @@ export function createOrchestrationEnvironmentAtoms<R, E>(
         );
       }),
     }),
+    threadTokenAnalytics: createEnvironmentRpcQueryAtomFamily(runtime, {
+      label: "environment-data:orchestration:thread-token-analytics",
+      tag: ORCHESTRATION_V2_WS_METHODS.getThreadTokenAnalytics,
+      staleTimeMs: 0,
+      idleTtlMs: 0,
+    }),
     threadTranscript: createEnvironmentCommand(runtime, {
       label: "environment-data:orchestration:thread-transcript",
       execute: Effect.fn("orchestration.execute")(function* (input: {

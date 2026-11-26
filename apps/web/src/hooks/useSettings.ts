@@ -33,7 +33,11 @@ import {
 } from "@t3tools/client-runtime/state/shared-settings";
 import { isElectron } from "~/env";
 import { ensureLocalApi } from "~/localApi";
-import { subscribeBrowserClientSettingsWrites } from "~/clientPersistenceStorage";
+import {
+  subscribeBrowserClientSettingsWrites,
+  hasBrowserChineseDefaultMigrated,
+  markBrowserChineseDefaultMigrated,
+} from "~/clientPersistenceStorage";
 import {
   getThemeDefinition,
   getThemePreviewSidebarArtwork,
@@ -74,9 +78,7 @@ type UnifiedSettingsPatch = ServerSettingsPatch & ClientSettingsPatch;
 const clientSettingsListeners = new Set<() => void>();
 const clientSettingsHydrationListeners = new Set<() => void>();
 type ClientSettingsHydrationStatus = "pending" | "ready" | "failed" | "retrying";
-const initialClientSettings = isElectron
-  ? { ...DEFAULT_CLIENT_SETTINGS, language: "zh" }
-  : DEFAULT_CLIENT_SETTINGS;
+const initialClientSettings: ClientSettings = { ...DEFAULT_CLIENT_SETTINGS, language: "zh" };
 let clientSettingsSnapshot = initialClientSettings;
 let clientSettingsHydrationStatus: ClientSettingsHydrationStatus = "pending";
 let clientSettingsHydrationPromise: Promise<void> | null = null;
@@ -159,7 +161,22 @@ async function hydrateClientSettings(): Promise<void> {
         return;
       }
       if (persistedSettings) {
-        replaceClientSettingsSnapshot({ ...DEFAULT_CLIENT_SETTINGS, ...persistedSettings });
+        let settings = { ...initialClientSettings, ...persistedSettings };
+        if (!isElectron && !hasBrowserChineseDefaultMigrated()) {
+          if (settings.language === "en") {
+            settings = { ...settings, language: "zh" };
+            try {
+              await ensureLocalApi().persistence.setClientSettings(settings);
+              markBrowserChineseDefaultMigrated();
+            } catch {
+              // Retry migration on the next launch if persistence is unavailable.
+            }
+          } else {
+            markBrowserChineseDefaultMigrated();
+          }
+        }
+        if (hydrationGeneration !== clientSettingsHydrationGeneration) return;
+        replaceClientSettingsSnapshot(settings);
       }
       unsubscribeOtherTabClientSettings ??= subscribeBrowserClientSettingsWrites(
         refreshClientSettingsFromOtherTab,
@@ -191,7 +208,7 @@ function refreshClientSettingsFromOtherTab(): void {
   void enqueueClientSettingsPersistence(async () => {
     const persistedSettings = await ensureLocalApi().persistence.getClientSettings();
     if (persistedSettings) {
-      replaceClientSettingsSnapshot({ ...DEFAULT_CLIENT_SETTINGS, ...persistedSettings });
+      replaceClientSettingsSnapshot({ ...initialClientSettings, ...persistedSettings });
     }
   }).catch((error) => {
     console.error(`${CLIENT_SETTINGS_PERSISTENCE_ERROR_SCOPE} refresh failed`, {

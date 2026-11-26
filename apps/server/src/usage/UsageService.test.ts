@@ -526,6 +526,51 @@ describe("Codex usage history", () => {
 });
 
 describe("UsageService", () => {
+  it.effect("reads cached rates and overrides without scanning or fetching", () =>
+    Effect.gen(function* () {
+      const { home, settings } = yield* setup;
+      const fetch = vi.fn();
+      yield* Effect.gen(function* () {
+        const { stateDir } = yield* ServerConfig.ServerConfig;
+        yield* Effect.promise(async () => {
+          await NodeFSP.mkdir(stateDir, { recursive: true });
+          await NodeFSP.writeFile(
+            NodePath.join(stateDir, "usage-model-rates.json"),
+            encodeUnknownJsonString({ fetchedAtMs: 1, document: COPY_RATES }),
+          );
+        });
+        const service = yield* UsageService.make;
+        const context = yield* service.getRateContext;
+        assert.equal(context.pricing.status, "cached");
+        assert.equal(context.rates.get("claude-fable-5")?.inputCostPerToken, 1e-5);
+        assert.equal(context.overrides.get("override")?.outputCostPerToken, 2e-6);
+        assert.equal(fetch.mock.calls.length, 0);
+        assert.isFalse(
+          yield* Effect.promise(() =>
+            NodeFSP.stat(NodePath.join(stateDir, SCAN_CACHE_FILE_NAME)).then(
+              () => true,
+              () => false,
+            ),
+          ),
+        );
+      }).pipe(
+        Effect.provide(
+          layerService({
+            prefix: "local-rate-context",
+            home,
+            settings: {
+              ...settings,
+              usagePriceOverrides: {
+                override: { inputCostPerMillionTokens: 1, outputCostPerMillionTokens: 2 },
+              },
+            },
+            onRatesFetch: fetch,
+          }),
+        ),
+      );
+    }),
+  );
+
   it.effect("keeps pricing metadata paired with the rates used during a concurrent refresh", () =>
     Effect.gen(function* () {
       const { home, settings } = yield* setup;

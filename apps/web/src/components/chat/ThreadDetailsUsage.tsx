@@ -1,8 +1,10 @@
 import type {
+  EnvironmentId,
   ProviderInstanceId,
   ServerProvider,
   ServerProviderUsageLimits,
   ServerProviderUsageWindow,
+  ThreadId,
   UsageLimitSourceSnapshots,
 } from "@t3tools/contracts";
 import {
@@ -116,7 +118,16 @@ function InstanceRows({
 }
 
 /** The thread's context window. The bar fills as context is used; the tick marks auto-compaction. */
-export function ThreadDetailsContext({ usage }: { readonly usage: ContextWindowSnapshot }) {
+export function ThreadDetailsContext({
+  usage,
+  threadRef = null,
+}: {
+  readonly usage: ContextWindowSnapshot;
+  readonly threadRef?: {
+    readonly environmentId: EnvironmentId;
+    readonly threadId: ThreadId;
+  } | null;
+}) {
   const maxTokens = usage.maxTokens != null && usage.maxTokens > 0 ? usage.maxTokens : null;
   const used =
     maxTokens !== null && usage.usedPercentage !== null
@@ -154,6 +165,7 @@ export function ThreadDetailsContext({ usage }: { readonly usage: ContextWindowS
               ? gt("{used}% used", { used })
               : gt("{usedTokens} tokens used", { usedTokens })
           }
+          tokenAnalytics={threadRef}
           tooltip={
             <>
               <span className="text-foreground">
@@ -292,7 +304,7 @@ function PoolRow({ window, now }: { readonly window: LimitPoolWindow; readonly n
   );
 }
 
-/** One label, hairline, and value row; the whole row opens the details tooltip. With `opensUsage` it links to the usage page. */
+/** One label, hairline, and value row; the whole row opens the details tooltip. With `opensUsage` it links to the usage page; with `tokenAnalytics` it links to the thread's token analytics. */
 function UsageRow({
   label,
   fill,
@@ -303,6 +315,7 @@ function UsageRow({
   tooltip,
   muted = false,
   opensUsage = false,
+  tokenAnalytics = null,
 }: {
   readonly label: string;
   /** Bar fill from 0 to 100. Null hides the bar. */
@@ -315,13 +328,18 @@ function UsageRow({
   readonly tooltip: ReactNode;
   readonly muted?: boolean;
   readonly opensUsage?: boolean;
+  readonly tokenAnalytics?: {
+    readonly environmentId: EnvironmentId;
+    readonly threadId: ThreadId;
+  } | null;
 }) {
   const gt = useGT();
+  const opensLink = opensUsage || tokenAnalytics !== null;
   const rowProps = {
     "aria-label": gt("{label}: {value}", { label, value: ariaValue }),
     className: cn(
       "col-span-3 grid h-6 grid-cols-subgrid items-center rounded-lg px-2.5 outline-none hover:bg-black/[0.035] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring data-popup-open:bg-black/[0.035] dark:hover:bg-white/[0.08] dark:data-popup-open:bg-white/[0.08]",
-      opensUsage
+      opensLink
         ? "group cursor-pointer active:bg-black/[0.06] dark:active:bg-white/[0.12]"
         : "cursor-default",
     ),
@@ -330,7 +348,17 @@ function UsageRow({
     <Tooltip>
       <TooltipTrigger
         render={
-          opensUsage ? <Link to="/usage" {...rowProps} /> : <div tabIndex={0} {...rowProps} />
+          tokenAnalytics !== null ? (
+            <Link
+              to="/token-analytics"
+              search={{ env: tokenAnalytics.environmentId, thread: tokenAnalytics.threadId }}
+              {...rowProps}
+            />
+          ) : opensUsage ? (
+            <Link to="/usage" {...rowProps} />
+          ) : (
+            <div tabIndex={0} {...rowProps} />
+          )
         }
       >
         <span className="max-w-28 truncate text-muted-foreground group-hover:text-foreground">
@@ -383,7 +411,11 @@ function UsageRow({
       <TooltipPopup side="left" sideOffset={16}>
         <div className="flex flex-col gap-0.5">
           {tooltip}
-          {opensUsage ? <span className="text-muted-foreground">{gt("Open usage")}</span> : null}
+          {tokenAnalytics !== null ? (
+            <span className="text-muted-foreground">{gt("Open token analytics")}</span>
+          ) : opensUsage ? (
+            <span className="text-muted-foreground">{gt("Open usage")}</span>
+          ) : null}
         </div>
       </TooltipPopup>
     </Tooltip>

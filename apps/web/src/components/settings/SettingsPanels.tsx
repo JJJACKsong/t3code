@@ -151,7 +151,7 @@ const SIDEBAR_PROJECT_SORT_ORDER_LABELS: Record<SidebarProjectSortOrder, string>
 };
 const isSidebarProjectSortOrder = Schema.is(SidebarProjectSortOrder);
 
-const defaultInterfaceLanguage = isElectron ? "zh" : DEFAULT_UNIFIED_SETTINGS.language;
+const defaultInterfaceLanguage = "zh";
 
 const TIMESTAMP_FORMAT_LABELS = {
   locale: msg("System default"),

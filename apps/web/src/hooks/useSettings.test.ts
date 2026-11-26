@@ -36,11 +36,42 @@ afterEach(() => {
 describe("client settings hydration", () => {
   const savedSettings = {
     ...DEFAULT_CLIENT_SETTINGS,
+    language: "zh",
     timestampFormat: "12-hour" as const,
     favorites: [{ provider: ProviderInstanceId.make("codex_work"), model: "gpt-5.6" }],
   };
   const onboardingCompletedAt = "2026-09-05T12:00:00.000Z";
   const complete = (current: ClientSettings) => ({ ...current, onboardingCompletedAt });
+
+  it.each(["en", "ja", "system", "zh"])(
+    "migrates %s once and preserves explicit English after hydration",
+    async (language) => {
+      const values = new Map<string, string>();
+      const windowStub = Object.assign(new EventTarget(), {
+        localStorage: {
+          getItem: (key: string) => values.get(key) ?? null,
+          setItem: (key: string, value: string) => values.set(key, value),
+        },
+      });
+      vi.stubGlobal("window", windowStub);
+      try {
+        persistenceMocks.getClientSettings.mockResolvedValue({ ...savedSettings, language });
+        await ensureClientSettingsHydrated();
+        expect(getClientSettings().language).toBe(language === "en" ? "zh" : language);
+        expect(values.get("t3code:zh-default-migrated:v1")).toBe("1");
+        expect(persistenceMocks.setClientSettings).toHaveBeenCalledTimes(language === "en" ? 1 : 0);
+        await persistClientSettingsPatch({ language: "en" });
+        __resetClientSettingsPersistenceForTests();
+        persistenceMocks.getClientSettings.mockResolvedValue({ ...savedSettings, language: "en" });
+        await ensureClientSettingsHydrated();
+        expect(getClientSettings().language).toBe("en");
+        expect(persistenceMocks.setClientSettings).toHaveBeenCalledTimes(language === "en" ? 2 : 1);
+      } finally {
+        __resetClientSettingsPersistenceForTests();
+        vi.unstubAllGlobals();
+      }
+    },
+  );
 
   it("waits for saved model preferences before applying the first server edit", async () => {
     const provider = ProviderInstanceId.make("codex_work");
@@ -54,7 +85,7 @@ describe("client settings hydration", () => {
       setModelFavorites: [{ provider, model: "new", favorite: true }],
       setModelsHidden: [{ provider, model: "new", hidden: true }],
     });
-    expect(getClientSettings()).toBe(DEFAULT_CLIENT_SETTINGS);
+    expect(getClientSettings()).toEqual({ ...DEFAULT_CLIENT_SETTINGS, language: "zh" });
     finishRead({
       ...savedSettings,
       providerModelPreferences: {
@@ -90,7 +121,7 @@ describe("client settings hydration", () => {
 
     await expect(persistClientSettingsUpdate(complete)).rejects.toBe(failure);
     expect(persistenceMocks.setClientSettings).not.toHaveBeenCalled();
-    expect(getClientSettings()).toBe(DEFAULT_CLIENT_SETTINGS);
+    expect(getClientSettings()).toEqual({ ...DEFAULT_CLIENT_SETTINGS, language: "zh" });
 
     const completedSettings = { ...savedSettings, onboardingCompletedAt };
     await expect(persistClientSettingsUpdate(complete)).resolves.toEqual(completedSettings);
@@ -114,7 +145,7 @@ describe("client settings hydration", () => {
 
     const hydration = ensureClientSettingsHydrated();
     persistClientSettingsPatch({ wordWrap: false });
-    expect(getClientSettings()).toBe(DEFAULT_CLIENT_SETTINGS);
+    expect(getClientSettings()).toEqual({ ...DEFAULT_CLIENT_SETTINGS, language: "zh" });
     expect(persistenceMocks.setClientSettings).not.toHaveBeenCalled();
 
     finishRead(savedSettings);

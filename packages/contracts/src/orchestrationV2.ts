@@ -1,3 +1,7 @@
+import {
+  OrchestrationV2GetThreadTokenAnalyticsInput,
+  OrchestrationV2ThreadTokenAnalytics,
+} from "./usage.ts";
 import { OrchestrationMessageContext } from "./composerContext.ts";
 import { withRecordIdTable } from "./orchestrationV2IdTable.ts";
 import * as DateTime from "effect/DateTime";
@@ -4111,6 +4115,7 @@ export const ORCHESTRATION_V2_WS_METHODS = {
   getWorktreeThreadIds: "orchestration.getWorktreeThreadIds",
   getOlderSettledThreads: "orchestration.getOlderSettledThreads",
   getThreadProjection: "orchestration.getThreadProjection",
+  getThreadTokenAnalytics: "orchestration.getThreadTokenAnalytics",
   getWorkflowScript: "orchestration.getWorkflowScript",
   getNativeChildWork: "orchestration.getNativeChildWork",
   stopWorkflow: "orchestration.stopWorkflow",
@@ -4806,6 +4811,10 @@ export const OrchestrationV2RpcSchemas = {
   getOlderSettledThreads: {
     input: OrchestrationV2GetOlderSettledThreadsInput,
     output: OrchestrationV2OlderSettledThreadsPage,
+  },
+  getThreadTokenAnalytics: {
+    input: OrchestrationV2GetThreadTokenAnalyticsInput,
+    output: OrchestrationV2ThreadTokenAnalytics,
   },
   getThreadProjection: {
     input: OrchestrationV2GetThreadProjectionInput,

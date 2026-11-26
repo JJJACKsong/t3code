@@ -165,6 +165,11 @@ export class UsageService extends Context.Service<
   UsageService,
   {
     readonly readSummary: (input: UsageSummaryInput) => Effect.Effect<UsageSummary, UsageReadError>;
+    readonly getRateContext: Effect.Effect<{
+      readonly rates: RateTable;
+      readonly overrides: RateTable;
+      readonly pricing: UsagePricing;
+    }>;
     readonly refreshRates: Effect.Effect<UsagePricing>;
   }
 >()("t3/usage/UsageService") {}
@@ -1269,7 +1274,16 @@ export const make = Effect.gen(function* () {
     return yield* Deferred.await(deferred);
   });
 
-  return { readSummary, refreshRates, awaitPersisted } as const;
+  const getRateContext = Effect.gen(function* () {
+    yield* loadSavedRates;
+    const settings = yield* settingsService.getSettings.pipe(Effect.orElseSucceed(() => null));
+    return {
+      rates,
+      overrides: createOverrideRateTable(settings?.usagePriceOverrides ?? {}),
+      pricing: pricing(),
+    };
+  });
+  return { readSummary, refreshRates, getRateContext, awaitPersisted } as const;
 });
 
 export const layer = Layer.effect(UsageService, make);

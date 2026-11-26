@@ -195,23 +195,33 @@ export const make = Effect.gen(function* () {
   const path = yield* Path.Path;
   const random = yield* SecureRandom.SecureRandom;
 
+  const settingsPath = environment.clientSettingsPath;
+  const markerPath = path.join(path.dirname(settingsPath), "client-settings.zh-default-v1.applied");
+  const markMigrated = fileSystem.writeFileString(markerPath, "").pipe(Effect.ignore);
+  const write = (settings: ClientSettings) =>
+    random.uuidV4().pipe(
+      Effect.map((uuid) => uuid.replace(/-/g, "")),
+      Effect.flatMap((suffix) =>
+        writeClientSettings({ fileSystem, path, settingsPath, settings, suffix }),
+      ),
+    );
+
   return DesktopClientSettings.of({
-    get: readClientSettings(fileSystem, environment.clientSettingsPath).pipe(
-      Effect.withSpan("desktop.clientSettings.get"),
-    ),
+    get: Effect.gen(function* () {
+      const saved = yield* readClientSettings(fileSystem, settingsPath);
+      if (Option.isNone(saved)) return saved;
+      const migrated = yield* fileSystem.exists(markerPath).pipe(Effect.orElseSucceed(() => true));
+      if (migrated) return saved;
+      if (saved.value.language !== "en") {
+        yield* markMigrated;
+        return saved;
+      }
+      const settings = { ...saved.value, language: "zh" };
+      yield* write(settings).pipe(Effect.andThen(markMigrated), Effect.ignore);
+      return Option.some(settings);
+    }).pipe(Effect.withSpan("desktop.clientSettings.get")),
     set: Effect.fn("desktop.clientSettings.set")(function (settings) {
-      return random.uuidV4().pipe(
-        Effect.map((uuid) => uuid.replace(/-/g, "")),
-        Effect.flatMap((suffix) =>
-          writeClientSettings({
-            fileSystem,
-            path,
-            settingsPath: environment.clientSettingsPath,
-            settings,
-            suffix,
-          }),
-        ),
-      );
+      return write(settings).pipe(Effect.andThen(markMigrated));
     }),
   });
 });
