@@ -69,23 +69,20 @@ export function resolvePendingUserInputAnswer(
       : question.initialAnswer !== undefined
         ? (draft?.customAnswer ?? null)
         : normalizeDraftAnswer(draft?.customAnswer);
-  if (customAnswer !== null && customAnswer.length > 0) {
-    return customAnswer;
-  }
-  if (question.required === false && question.options.length === 0) {
-    return "";
-  }
-
   const selectedOptionValues = normalizeSelectedOptionValues(question, draft?.selectedOptionValues);
   const fallback =
     customAnswer ??
     (question.allowCustomAnswer !== false && (draft?.attachmentCount ?? 0) > 0 ? "" : null);
   if (question.multiSelect) {
     // Checking nothing answers "none of these" unless the provider requires a choice.
-    return selectedOptionValues.length > 0
-      ? selectedOptionValues
-      : (fallback ?? (question.required ? null : []));
+    if (selectedOptionValues.length > 0) {
+      return customAnswer ? [...selectedOptionValues, customAnswer] : selectedOptionValues;
+    }
+    if (customAnswer) return question.required === true ? null : customAnswer;
+    return fallback ?? (question.required ? null : []);
   }
+  if (customAnswer) return customAnswer;
+  if (question.required === false && question.options.length === 0) return "";
   return selectedOptionValues[0] ?? fallback;
 }
 
@@ -99,9 +96,9 @@ export function setPendingUserInputCustomAnswer(
   }
 
   const selectedOptionValues =
-    question.initialAnswer !== undefined || customAnswer.trim().length > 0
-      ? undefined
-      : normalizeSelectedOptionValues(question, draft?.selectedOptionValues);
+    question.multiSelect || (question.initialAnswer === undefined && customAnswer.trim() === "")
+      ? normalizeSelectedOptionValues(question, draft?.selectedOptionValues)
+      : undefined;
   return {
     customAnswer,
     ...(selectedOptionValues && selectedOptionValues.length > 0 ? { selectedOptionValues } : {}),
@@ -113,7 +110,11 @@ export function isPendingUserInputOptionSelected(
   draft: PendingUserInputDraftAnswer | undefined,
   optionValue: string,
 ): boolean {
-  if (question.allowCustomAnswer !== false && normalizeDraftAnswer(draft?.customAnswer)) {
+  if (
+    !question.multiSelect &&
+    question.allowCustomAnswer !== false &&
+    normalizeDraftAnswer(draft?.customAnswer)
+  ) {
     return false;
   }
 
@@ -147,7 +148,7 @@ export function togglePendingUserInputOptionSelection(
       : [...selectedOptionValues, resolvedOptionValue];
 
     return {
-      customAnswer: "",
+      customAnswer: draft?.customAnswer ?? "",
       ...(nextSelectedOptionValues.length > 0
         ? { selectedOptionValues: nextSelectedOptionValues }
         : {}),
@@ -160,7 +161,10 @@ export function togglePendingUserInputOptionSelection(
   };
 }
 
-/** Every question's answer keyed by question id, or null while any is unanswered. */
+/**
+ * The answers to submit keyed by question id, or null while a question still needs one.
+ * An optional single choice left unselected is skipped: it gets no entry.
+ */
 export function buildPendingUserInputAnswers(
   questions: ReadonlyArray<PendingUserInputQuestion>,
   draftAnswers: Record<string, PendingUserInputDraftAnswer>,
@@ -168,8 +172,10 @@ export function buildPendingUserInputAnswers(
   const entries: Array<[string, PendingUserInputAnswer]> = [];
 
   for (const question of questions) {
-    const answer = resolvePendingUserInputAnswer(question, draftAnswers[question.id]);
+    const draft = draftAnswers[question.id];
+    const answer = resolvePendingUserInputAnswer(question, draft);
     if (answer === null) {
+      if (question.required === false && !draft?.attachmentsBlocked) continue;
       return null;
     }
     entries.push([question.id, answer]);

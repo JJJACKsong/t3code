@@ -54,15 +54,23 @@ export function projectPendingUserInputAnswer(
   answer: unknown,
   records: ReadonlyArray<AnswerContextRecord>,
 ) {
-  if (typeof answer !== "string" || records.length === 0) return answer;
+  if (records.length === 0) return answer;
   const recordsById = new Map(records.map((record) => [record.contextId, record]));
-  return replaceComposerContextReferences(answer, (reference) => {
-    const record = recordsById.get(reference.contextId);
-    if (record?.kind !== reference.kind) return reference.source;
-    return record.kind === "thread"
-      ? formatThreadLink(record, reference.label)
-      : projectComposerContextForProvider({ text: reference.source, records: [record] });
-  });
+  const project = (part: unknown): unknown => {
+    if (Array.isArray(part)) {
+      const projected = part.map(project);
+      return projected.some((entry, index) => entry !== part[index]) ? projected : part;
+    }
+    if (typeof part !== "string") return part;
+    return replaceComposerContextReferences(part, (reference) => {
+      const record = recordsById.get(reference.contextId);
+      if (record?.kind !== reference.kind) return reference.source;
+      return record.kind === "thread"
+        ? formatThreadLink(record, reference.label)
+        : projectComposerContextForProvider({ text: reference.source, records: [record] });
+    });
+  };
+  return project(answer);
 }
 
 // Question drafts retain deleted chip records for undo; only transfer referenced records.
@@ -169,6 +177,8 @@ export function derivePendingUserInputProgress<Q extends UserInputQuestion>(
     answeredQuestionCount,
     isLastQuestion,
     isComplete: buildPendingUserInputAnswers(questions, draftAnswers) !== null,
-    canAdvance: resolvedAnswer !== null,
+    canAdvance:
+      activeQuestion !== null &&
+      buildPendingUserInputAnswers([activeQuestion], draftAnswers) !== null,
   };
 }

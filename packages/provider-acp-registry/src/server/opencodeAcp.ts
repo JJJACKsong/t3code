@@ -52,8 +52,8 @@ const findChoice = (options: ReadonlyArray<Option>, value: string) =>
   options.find((option) => option.value === value);
 
 // OpenCode 2.1 asks through ACP with a `qN` choice field plus a `qN_custom` companion.
-// Multi-select forms stay with the generic mapping: it keeps the companion as its own
-// question, and clients cannot yet send selected choices and custom text as one answer.
+// Multi-select forms stay with the generic mapping. It keeps OpenCode's `_custom` companion
+// as a separate field.
 export const extractOpenCodeElicitationForm: NonNullable<
   AcpAdapterV2Flavor["extractElicitationForm"]
 > = (request) => {
@@ -105,6 +105,7 @@ export const extractOpenCodeElicitationForm: NonNullable<
       const content: Record<string, string> = {};
       for (const question of questions) {
         const answer = Object.hasOwn(answers, question.id) ? answers[question.id] : undefined;
+        if (answer === undefined) continue;
         if (!Predicate.isString(answer)) return { action: "cancel" };
         const companionId = `${question.id}${companionSuffix}`;
         const exact = findChoice(question.options, answer);

@@ -1,6 +1,11 @@
 import type { EnvironmentId, RuntimeRequestId, ThreadId } from "@t3tools/contracts";
-import type { ReactNode } from "react";
-import { act } from "react";
+import {
+  buildPendingUserInputAnswers,
+  setPendingUserInputCustomAnswer,
+  togglePendingUserInputOptionSelection,
+  type PendingUserInputDraftAnswer,
+} from "@t3tools/client-runtime/state/pending-user-input";
+import { act, useState, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { expect, it, vi } from "vite-plus/test";
 
@@ -14,11 +19,30 @@ const harness = vi.hoisted(() => ({
 type Children = { children?: ReactNode };
 
 vi.mock("react-native", () => ({
-  Platform: { OS: "ios" },
+  Platform: { OS: process.env.T3_MOBILE_TEST_PLATFORM === "android" ? "android" : "ios" },
   View: ({ children }: Children) => <div>{children}</div>,
   ScrollView: ({ children }: Children) => <div>{children}</div>,
-  Pressable: ({ children, onPress }: Children & { onPress?: () => void }) => (
-    <div onClick={onPress}>{children}</div>
+  Pressable: ({
+    children,
+    onPress,
+    accessibilityState,
+    accessibilityRole,
+    disabled,
+  }: Children & {
+    onPress?: () => void;
+    accessibilityRole?: "checkbox" | "radio";
+    accessibilityState?: { checked?: boolean };
+    disabled?: boolean;
+  }) => (
+    <button
+      type="button"
+      role={accessibilityRole}
+      aria-checked={accessibilityState?.checked}
+      disabled={disabled}
+      onClick={onPress}
+    >
+      {children}
+    </button>
   ),
 }));
 vi.mock("react-native-reanimated", () => {
@@ -37,8 +61,21 @@ vi.mock("../../components/ui/AppText", () => ({
   AppText: ({ children }: Children) => <span>{children}</span>,
 }));
 vi.mock("../../components/ui/ControlPill", () => ({ ControlPill: () => null }));
-vi.mock("../../components/ui/Button", () => ({ Button: () => null }));
-vi.mock("./QuestionAttachments", () => ({ QuestionAttachments: () => null }));
+vi.mock("../../components/ui/Button", () => ({
+  Button: (props: { label: string; disabled?: boolean; onPress: () => void }) => (
+    <button type="button" disabled={props.disabled} onClick={props.onPress}>
+      {props.label}
+    </button>
+  ),
+}));
+vi.mock("./QuestionAttachments", () => ({
+  QuestionAttachments: (props: { value: string; onChangeText: (value: string) => void }) => (
+    <textarea
+      value={props.value}
+      onInput={(event) => props.onChangeText(event.currentTarget.value)}
+    />
+  ),
+}));
 vi.mock("../files/FileMarkdownPreview", () => ({
   useMarkdownPreviewStyles: () => ({ nativeTextStyle: {} }),
 }));
@@ -70,28 +107,35 @@ vi.mock("@react-navigation/native", () => ({
 
 import { PendingUserInputCard } from "./PendingUserInputCard";
 
-function setup(questionMarkdown: string) {
+function setup(
+  questionMarkdown: string,
+  questionFields: Partial<PendingUserInput["questions"][number]> = {},
+) {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   harness.navigate = [];
   harness.openedUrls = [];
 
-  const pendingUserInput = {
+  const question: PendingUserInput["questions"][number] = {
+    id: "question-1",
+    header: "Review",
+    question: questionMarkdown,
+    options: [],
+    multiSelect: false,
+    allowCustomAnswer: false,
+    ...questionFields,
+  };
+  const pendingUserInput: PendingUserInput = {
     requestId: "request-1" as RuntimeRequestId,
-    responseCapability: "resumable",
-    questions: [
-      {
-        id: "question-1",
-        header: "Review",
-        question: questionMarkdown,
-        options: [],
-        allowCustomAnswer: false,
-      },
-    ],
-  } as unknown as PendingUserInput;
-  const container = document.createElement("div");
-  const root = createRoot(container);
-  act(() =>
-    root.render(
+    createdAt: "2026-01-01T00:00:00.000Z",
+    responseCapability: "live",
+    dismissible: false,
+    questions: [question],
+  };
+  const onSubmit = vi.fn();
+  function Card() {
+    const [drafts, setDrafts] = useState<Record<string, PendingUserInputDraftAnswer>>({});
+    const answers = buildPendingUserInputAnswers(pendingUserInput.questions, drafts);
+    return (
       <PendingUserInputCard
         environmentId={"env-1" as EnvironmentId}
         threadId={"thread-1" as ThreadId}
@@ -103,23 +147,59 @@ function setup(questionMarkdown: string) {
         cardCoverage={{ value: 0, set: () => {} } as never}
         collapsed={false}
         onToggleCollapsed={() => {}}
-        drafts={{}}
-        answers={null}
+        drafts={drafts}
+        answers={answers}
         respondingUserInputId={null}
-        onSelectOption={() => {}}
-        onChangeCustomAnswer={() => {}}
-        onSubmit={async () => {}}
+        onSelectOption={(_requestId, selectedQuestion, value) =>
+          setDrafts((current) => ({
+            ...current,
+            [selectedQuestion.id]: togglePendingUserInputOptionSelection(
+              selectedQuestion,
+              current[selectedQuestion.id],
+              value,
+            ),
+          }))
+        }
+        onChangeCustomAnswer={(_requestId, questionId, value) =>
+          setDrafts((current) => ({
+            ...current,
+            [questionId]: setPendingUserInputCustomAnswer(question, current[questionId], value),
+          }))
+        }
+        onSubmit={async () => onSubmit(answers)}
         onDismiss={async () => {}}
-      />,
-    ),
-  );
+      />
+    );
+  }
+
+  const container = document.createElement("div");
+  const root = createRoot(container);
+  act(() => root.render(<Card />));
+  const button = (label: string) => {
+    const element = [...container.querySelectorAll("button")].find(
+      (entry) => entry.textContent === label,
+    );
+    if (!element) throw new Error(`No button labelled ${label}`);
+    return element;
+  };
+  const input = () => {
+    const element = container.querySelector("textarea");
+    if (!element) throw new Error("No custom answer field");
+    return element;
+  };
   return {
-    async pressLink(label: string) {
-      const link = [...container.querySelectorAll("button")].find(
-        (button) => button.textContent === label,
-      );
-      if (!link) throw new Error(`No link labelled ${label}`);
-      await act(async () => link.click());
+    button,
+    input,
+    onSubmit,
+    async press(label: string) {
+      await act(async () => button(label).click());
+    },
+    changeText(text: string) {
+      act(() => {
+        const element = input();
+        element.value = text;
+        element.dispatchEvent(new Event("input", { bubbles: true }));
+      });
     },
     [Symbol.dispose]() {
       act(() => root.unmount());
@@ -130,7 +210,7 @@ function setup(questionMarkdown: string) {
 it("opens a workspace file link in a question in the thread's file viewer", async () => {
   using screen = setup("Should I update [probe.md](docs/probe.md:12)?");
 
-  await screen.pressLink("probe.md");
+  await screen.press("probe.md");
 
   expect(harness.openedUrls).toEqual([]);
   expect(harness.navigate).toEqual([
@@ -139,4 +219,41 @@ it("opens a workspace file link in a question in the thread's file viewer", asyn
       { environmentId: "env-1", threadId: "thread-1", path: ["docs", "probe.md"], line: "12" },
     ],
   ]);
+});
+
+it("keeps multi-select choices and supplemental text together through submission", async () => {
+  using screen = setup("Which platforms?", {
+    multiSelect: true,
+    allowCustomAnswer: true,
+    options: [
+      { label: "Web", value: "web", description: "Web" },
+      { label: "Mobile", value: "mobile", description: "Mobile" },
+    ],
+  });
+
+  await screen.press("Web");
+  screen.changeText("Include desktop");
+  expect(screen.button("Web").getAttribute("aria-checked")).toBe("true");
+  await screen.press("Mobile");
+  expect(screen.input().value).toBe("Include desktop");
+  expect(screen.button("Mobile").getAttribute("aria-checked")).toBe("true");
+
+  await screen.press("Submit answers");
+  expect(screen.onSubmit).toHaveBeenCalledWith({
+    "question-1": ["web", "mobile", "Include desktop"],
+  });
+});
+
+it("can submit an unselected optional choice", async () => {
+  using screen = setup("Include extras?", {
+    required: false,
+    options: [
+      { label: "Yes", value: "true", description: "Yes" },
+      { label: "No", value: "false", description: "No" },
+    ],
+  });
+
+  expect(screen.button("Submit answers").disabled).toBe(false);
+  await screen.press("Submit answers");
+  expect(screen.onSubmit).toHaveBeenCalledWith({});
 });

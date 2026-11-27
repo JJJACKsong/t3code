@@ -156,6 +156,26 @@ describe("togglePendingUserInputOptionSelection", () => {
 });
 
 describe("setPendingUserInputCustomAnswer", () => {
+  it("keeps multi-select options and custom text through edits and toggles", () => {
+    const question = { ...nativeChoiceQuestion, allowCustomAnswer: true, multiSelect: true };
+    const firstSelected = togglePendingUserInputOptionSelection(question, undefined, " first\t");
+    const withCustom = setPendingUserInputCustomAnswer(question, firstSelected, "  Other  ");
+    expect(isPendingUserInputOptionSelected(question, withCustom, " first\t")).toBe(true);
+    const bothSelected = togglePendingUserInputOptionSelection(question, withCustom, "second");
+    expect(bothSelected.customAnswer).toBe("  Other  ");
+    expect(buildPendingUserInputAnswers([question], { result: bothSelected })).toEqual({
+      result: [" first\t", "second", "Other"],
+    });
+
+    const onlyCustom = togglePendingUserInputOptionSelection(
+      question,
+      togglePendingUserInputOptionSelection(question, bothSelected, " first\t"),
+      "second",
+    );
+    expect(resolvePendingUserInputAnswer(question, onlyCustom)).toBe("Other");
+    expect(resolvePendingUserInputAnswer({ ...question, required: true }, onlyCustom)).toBeNull();
+  });
+
   it("rejects arbitrary text when the provider only accepts offered options", () => {
     expect(setPendingUserInputCustomAnswer(nativeChoiceQuestion, undefined, "Other")).toEqual({});
     expect(
@@ -222,6 +242,39 @@ describe("buildPendingUserInputAnswers", () => {
         scope,
       }),
     ).toBeNull();
+  });
+
+  it("omits an unselected optional single choice and keeps explicit false and empty choices", () => {
+    const extras = {
+      id: "extras",
+      options: [
+        { label: "true", value: "true" },
+        { label: "false", value: "false" },
+      ],
+      allowCustomAnswer: false,
+      required: false,
+    };
+    const mode = {
+      id: "mode",
+      options: [
+        { label: '""', value: "" },
+        { label: "fast", value: "fast" },
+      ],
+      allowCustomAnswer: false,
+      required: false,
+    };
+
+    expect(buildPendingUserInputAnswers([extras, mode], {})).toEqual({});
+    expect(
+      buildPendingUserInputAnswers([extras, mode], {
+        extras: { selectedOptionValues: ["false"] },
+        mode: { selectedOptionValues: [""] },
+      }),
+    ).toEqual({ extras: "false", mode: "" });
+    expect(
+      buildPendingUserInputAnswers([extras, mode], { extras: { attachmentsBlocked: true } }),
+    ).toBeNull();
+    expect(buildPendingUserInputAnswers([{ ...extras, required: undefined }, mode], {})).toBeNull();
   });
 });
 

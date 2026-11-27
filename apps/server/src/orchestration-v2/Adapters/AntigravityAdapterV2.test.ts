@@ -162,6 +162,49 @@ describe("AntigravityAdapterV2 flavor", () => {
       outcome: { outcome: "selected", optionId: "opt-dev" },
     });
   });
+
+  it("shows each ask_question question as the question body, not the generic form message", () => {
+    // agy's ask_question puts each question in its field's title, with no description,
+    // and a generic count in the form message.
+    const choice = (title: string) => ({
+      type: "string",
+      title,
+      oneOf: [
+        { const: "npm", title: "npm" },
+        { const: "pnpm", title: "pnpm" },
+      ],
+    });
+    const form = flavor.extractElicitationForm?.({
+      sessionId: "session-1",
+      mode: "form",
+      message: "The agent has 2 questions.",
+      requestedSchema: {
+        type: "object",
+        properties: {
+          q0: choice("Which package manager should this new TypeScript project use?"),
+          q0_other: { type: "string", title: "Other" },
+          q1: {
+            type: "array",
+            title: "  Which package managers should the docs sites use?  ",
+            description: " ",
+            items: { type: "string", enum: ["npm", "pnpm"] },
+          },
+          q1_other: { type: "string", title: "Other" },
+        },
+      },
+    } as EffectAcpSchema.CreateElicitationRequest);
+    assert.deepEqual(
+      form?.questions.map(({ header, question, multiSelect }) => [header, question, multiSelect]),
+      [
+        ["Question 1", "Which package manager should this new TypeScript project use?", undefined],
+        ["Question 2", "Which package managers should the docs sites use?", true],
+      ],
+    );
+    assert.deepEqual(form?.respond({ q1: ["pnpm", "Use Bun for examples"] }), {
+      action: "accept",
+      content: { q1: ["pnpm"], q1_other: "Use Bun for examples" },
+    });
+  });
 });
 
 const layerSession = Layer.mergeAll(

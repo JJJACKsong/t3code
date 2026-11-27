@@ -20,6 +20,14 @@ type Field =
 
 type Option = OrchestrationV2UserInputQuestion["options"][number];
 
+/** A form as the user answers it, and the elicitation response their answers make. */
+export interface ElicitationQuestionForm {
+  readonly questions: ReadonlyArray<OrchestrationV2UserInputQuestion>;
+  readonly respond: (
+    answers: ProviderUserInputAnswers,
+  ) => EffectAcpSchema.CreateElicitationResponse;
+}
+
 export interface ElicitationForm {
   readonly questions: ReadonlyArray<OrchestrationV2UserInputQuestion>;
   /**
@@ -176,6 +184,44 @@ function typedAnswer(
   }
 }
 
+function requiredIds(schema: Readonly<Record<string, unknown>> | undefined): ReadonlySet<string> {
+  return new Set(
+    Array.isArray(schema?.required)
+      ? schema.required.filter((key): key is string => typeof key === "string")
+      : [],
+  );
+}
+
+/**
+ * Applies the schema's `required` list to a form mapped outside `parseElicitationForm`: a single
+ * choice the schema leaves optional can be skipped, and one it requires must be answered.
+ */
+export function withOptionalChoices(
+  form: ElicitationQuestionForm,
+  requestedSchema: unknown,
+): ElicitationQuestionForm {
+  const schema = unknownRecord(requestedSchema);
+  const properties = unknownRecord(schema?.properties) ?? {};
+  const required = requiredIds(schema);
+  return {
+    questions: form.questions.map((question) =>
+      question.required === undefined &&
+      question.multiSelect !== true &&
+      question.options.length > 0 &&
+      Object.hasOwn(properties, question.id) &&
+      !required.has(question.id)
+        ? { ...question, required: false }
+        : question,
+    ),
+    respond: (answers) =>
+      form.questions.some(
+        (question) => required.has(question.id) && !Object.hasOwn(answers, question.id),
+      )
+        ? { action: "cancel" }
+        : form.respond(answers),
+  };
+}
+
 // Decline unaskable forms; validate types and selection counts, leaving other constraints to the agent.
 // `allowOther` lets single choices take typed text, sent as the field's value.
 export function parseElicitationForm(
@@ -184,11 +230,7 @@ export function parseElicitationForm(
   { allowOther = false }: { readonly allowOther?: boolean } = {},
 ): ElicitationForm | undefined {
   const schema = unknownRecord(requestedSchema);
-  const required = new Set(
-    Array.isArray(schema?.required)
-      ? schema.required.filter((key): key is string => typeof key === "string")
-      : [],
-  );
+  const required = requiredIds(schema);
   const fields = new Map<string, Field>();
   const parsedFields: Array<{
     readonly id: string;
@@ -203,18 +245,17 @@ export function parseElicitationForm(
     fields.set(id, parsed.field);
     parsedFields.push({ id, property, options: parsed.options });
   }
-  // An optional `<id>__other` text field (OMP's ask dialog) is the free-text answer to
-  // optional single choice `<id>`: ask them as one question and send custom text to the
-  // companion. Multi-select keeps both fields, since it can answer with options and text.
+  // A choice that can be left unselected can share its question with an optional Other field.
   const companions = new Map<string, string>();
   for (const [id, field] of fields) {
-    const companionId = `${id}__other`;
-    if (
-      field.kind === "choice" &&
-      fields.get(companionId)?.kind === "text" &&
-      !required.has(id) &&
-      !required.has(companionId)
-    ) {
+    const canFold =
+      (field.kind === "choice" && !required.has(id)) ||
+      (field.kind === "multiChoice" && (!required.has(id) || field.minItems === 0));
+    if (!canFold) continue;
+    const companionId = [`${id}__other`, `${id}_other`].find(
+      (candidate) => fields.get(candidate)?.kind === "text" && !required.has(candidate),
+    );
+    if (companionId !== undefined) {
       companions.set(id, companionId);
     }
   }
@@ -240,7 +281,7 @@ export function parseElicitationForm(
       ...(field?.kind === "multiChoice" && field.minItems > 0 && required.has(id)
         ? { required: true }
         : {}),
-      ...(kind === "text" && !required.has(id) ? { required: false } : {}),
+      ...(kind !== "multiChoice" && !required.has(id) ? { required: false } : {}),
     });
   }
   return {
@@ -250,8 +291,41 @@ export function parseElicitationForm(
       for (const [id, field] of fields) {
         if (folded.has(id)) continue;
         const answer = Object.hasOwn(answers, id) ? answers[id] : undefined;
-        const typed = answer === undefined ? undefined : typedAnswer(field, answer);
         const companionId = companions.get(id);
+        if (field.kind === "multiChoice" && companionId !== undefined) {
+          const isRequired = required.has(id);
+          if (typeof answer === "string") {
+            if (isRequired) entries.push([id, []]);
+            if (answer.trim() !== "") entries.push([companionId, answer]);
+            continue;
+          }
+          if (!Array.isArray(answer)) {
+            if (isRequired) return undefined;
+            continue;
+          }
+          // Custom text and any attachment references travel alongside the option values.
+          const selected = new Set<string>();
+          const customParts: string[] = [];
+          for (const part of answer) {
+            if (typeof part !== "string") continue;
+            if (field.values.has(part)) selected.add(part);
+            else if (part.trim() !== "") customParts.push(part);
+          }
+          if (selected.size > 0) {
+            if (selected.size < field.minItems || selected.size > field.maxItems) return undefined;
+            entries.push([id, [...selected]]);
+          } else if (answer.length === 0) {
+            if (field.minItems === 0) entries.push([id, []]);
+            else if (isRequired) return undefined;
+          } else if (customParts.length === 0) {
+            if (isRequired) return undefined;
+          } else if (isRequired) {
+            entries.push([id, []]);
+          }
+          if (customParts.length > 0) entries.push([companionId, customParts.join("\n\n")]);
+          continue;
+        }
+        const typed = answer === undefined ? undefined : typedAnswer(field, answer);
         if (typed !== undefined) entries.push([id, typed]);
         else if (
           allowOther &&

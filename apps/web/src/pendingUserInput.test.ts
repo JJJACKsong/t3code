@@ -72,6 +72,16 @@ describe("projectPendingUserInputAnswer", () => {
     expect(projected).toContain("Rename this to line two updated");
     expect(projected).toContain("+line two changed");
     expect(projected).toContain(`comment: ${annotation.comment}`);
+    expect(
+      projectPendingUserInputAnswer(
+        ["option_1", answer, formatInlineContextReference(threadContextReference(record))],
+        [...records, record],
+      ),
+    ).toEqual([
+      "option_1",
+      projected,
+      "[Reference work](t3-thread://v2/env-answer/reference-thread)",
+    ]);
   });
 
   // regression: #18789 answers to pending questions lost exact text and option values
@@ -161,6 +171,37 @@ describe("pending user input question progress", () => {
       isComplete: false,
       canAdvance: true,
     });
+  });
+
+  it("advances past an unselected optional single choice", () => {
+    const optionalChoice = {
+      id: "extras",
+      header: "Extras",
+      question: "Include extras?",
+      options: [
+        { label: "true", description: "Yes", value: "true" },
+        { label: "false", description: "No", value: "false" },
+      ],
+      allowCustomAnswer: false,
+      required: false,
+    } as const;
+    const mixed = [optionalChoice, singleSelectQuestion] as const;
+
+    expect(derivePendingUserInputProgress(mixed, {}, 0)).toMatchObject({
+      canAdvance: true,
+      isComplete: false,
+    });
+    expect(
+      derivePendingUserInputProgress(mixed, { extras: { attachmentsBlocked: true } }, 0),
+    ).toMatchObject({ canAdvance: false });
+    expect(derivePendingUserInputProgress(mixed, {}, 1)).toMatchObject({ canAdvance: false });
+    expect(
+      derivePendingUserInputProgress(
+        mixed,
+        { scope: { selectedOptionValues: ["Orchestration-first"] } },
+        1,
+      ),
+    ).toMatchObject({ canAdvance: true, isComplete: true });
   });
 });
 

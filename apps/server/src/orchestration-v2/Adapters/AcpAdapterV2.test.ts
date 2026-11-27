@@ -2326,6 +2326,7 @@ describe("AcpAdapterV2", () => {
         { label: "Blue", description: "Blue", value: "blue" },
       ],
       allowCustomAnswer: true,
+      required: false,
     },
   ];
 
@@ -2338,6 +2339,8 @@ describe("AcpAdapterV2", () => {
         answers: { q0: "Please wait" },
         content: { q0__other: "Please wait" },
       },
+      // regression: #43335 a choice the schema leaves optional could not be skipped
+      { scenario: "OMP skipped optional choice", answers: {}, content: {} },
     ].map((fixture) => ({
       ...fixture,
       settings: OMP_SETTINGS,
@@ -2366,6 +2369,7 @@ describe("AcpAdapterV2", () => {
             { label: "Approve", value: "Approve", description: "Commit the verified fix." },
             { label: "Hold", value: "Hold", description: "Hold" },
           ],
+          required: false,
         },
       ],
       result: { action: "accept", content: fixture.content },
@@ -2427,6 +2431,42 @@ describe("AcpAdapterV2", () => {
       }),
     },
     {
+      scenario: "sends folded multi-select options, extra text and uploaded attachments",
+      schema: {
+        type: "object",
+        properties: {
+          question_1: {
+            type: "array",
+            title: "Targets",
+            description: "Which platforms?",
+            items: { type: "string", enum: ["web", "mobile"] },
+          },
+          question_1_other: { type: "string" },
+        },
+      },
+      questions: [
+        {
+          id: "question_1",
+          header: "Targets",
+          question: "Which platforms?",
+          multiSelect: true,
+          options: [
+            { label: "web", value: "web", description: "web" },
+            { label: "mobile", value: "mobile", description: "mobile" },
+          ],
+        },
+      ],
+      withAttachments: true,
+      answers: { question_1: ["web", "mobile", "Include desktop"] },
+      result: (directory: string) => ({
+        action: "accept",
+        content: {
+          question_1: ["web", "mobile"],
+          question_1_other: `Include desktop\n\nAttached image "shot.png": ${JSON.stringify(NodePath.join(directory, "droid-shot.png"))}\nAttached file "spec.txt": ${JSON.stringify(NodePath.join(directory, "droid-spec.txt"))}`,
+        },
+      }),
+    },
+    {
       scenario: "cancels without accepting answers",
       schema: droidSchema,
       questions: droidQuestions,
@@ -2455,6 +2495,22 @@ describe("AcpAdapterV2", () => {
       questions: openCodeQuestions,
       answers: { q0: "blue" },
       result: { action: "accept", content: { q0: "blue" } },
+    },
+    {
+      scenario: "OpenCode skipped optional choice",
+      settings: OPENCODE_SETTINGS,
+      schema: openCodeSchema,
+      questions: openCodeQuestions,
+      answers: {},
+      result: { action: "accept", content: {} },
+    },
+    {
+      scenario: "OpenCode required choice left unanswered is cancelled",
+      settings: OPENCODE_SETTINGS,
+      schema: { ...openCodeSchema, required: ["q0"] },
+      questions: openCodeQuestions.map(({ required: _, ...question }) => question),
+      answers: {},
+      result: { action: "cancel" },
     },
     {
       scenario: "Devin allowOther choice accepts a typed answer",

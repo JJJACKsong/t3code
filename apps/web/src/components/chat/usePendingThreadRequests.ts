@@ -420,10 +420,13 @@ export function usePendingThreadRequests(input: {
       });
       for (const { question, target, draft } of questionDrafts) {
         if ((useQuestionAttachmentPreparation.getState().counts[target] ?? 0) > 0) return;
-        providerAnswers[question.id] = projectPendingUserInputAnswer(
-          answers[question.id],
-          answerContextRecords(draft, threadDraft),
-        );
+        // A skipped optional question has no entry and must not gain an undefined one.
+        if (Object.hasOwn(answers, question.id)) {
+          providerAnswers[question.id] = projectPendingUserInputAnswer(
+            answers[question.id],
+            answerContextRecords(draft, threadDraft),
+          );
+        }
         const attachments = draft ? [...draft.images, ...draft.files] : [];
         if (attachments.length === 0) continue;
         await refreshExpiredAttachmentUploads({
@@ -532,50 +535,50 @@ export function usePendingThreadRequests(input: {
     if (!activePendingUserInput) {
       return;
     }
-    // The option replaces the custom answer. Anything typed there is the
-    // user's text, so it goes back to the thread draft instead of vanishing.
-    const displacedAnswer =
-      readPendingUserInputDraft(draftScope).activePendingDraftAnswers[questionId]?.customAnswer;
-    const currentPrompt =
-      useComposerDraftStore.getState().getComposerDraft(composerDraftTarget)?.prompt ?? "";
-    const nextPrompt = carryDisplacedCustomAnswerIntoPrompt(currentPrompt, displacedAnswer);
-    if (nextPrompt !== currentPrompt) {
-      setComposerDraftPrompt(composerDraftTarget, nextPrompt);
-      displacedAnswers.current.push({
-        draft: displacedDraftKey,
-        key: `${activePendingRequestKey}:${questionId}`,
-        text: displacedAnswer ?? "",
-      });
-      toastManager.add({
-        type: "info",
-        title: m(msg("Your typed text was set aside")),
-        description: m(msg("It will be back in the composer once the question is answered.")),
-        data: { threadRef: activeThreadId ? { environmentId, threadId: activeThreadId } : null },
-      });
-      if (activeThreadId) {
-        const store = useComposerDraftStore.getState();
-        const questionTarget = questionAttachmentDraftId(
-          environmentId,
-          activeThreadId,
-          activePendingUserInput.requestId,
-          questionId,
-        );
-        store.addThreadContexts(
-          composerDraftTarget,
-          threadContextsReferencedByAnswer(
-            displacedAnswer ?? "",
-            store.getComposerDraft(questionTarget)?.threadContexts ?? [],
-          ),
-          { appendReference: false },
-        );
+    const question = activePendingUserInput.questions.find((entry) => entry.id === questionId);
+    if (!question) return;
+
+    if (!question.multiSelect) {
+      // The option replaces the custom answer. Anything typed there is the
+      // user's text, so it goes back to the thread draft instead of vanishing.
+      const displacedAnswer =
+        readPendingUserInputDraft(draftScope).activePendingDraftAnswers[questionId]?.customAnswer;
+      const currentPrompt =
+        useComposerDraftStore.getState().getComposerDraft(composerDraftTarget)?.prompt ?? "";
+      const nextPrompt = carryDisplacedCustomAnswerIntoPrompt(currentPrompt, displacedAnswer);
+      if (nextPrompt !== currentPrompt) {
+        setComposerDraftPrompt(composerDraftTarget, nextPrompt);
+        displacedAnswers.current.push({
+          draft: displacedDraftKey,
+          key: `${activePendingRequestKey}:${questionId}`,
+          text: displacedAnswer ?? "",
+        });
+        toastManager.add({
+          type: "info",
+          title: m(msg("Your typed text was set aside")),
+          description: m(msg("It will be back in the composer once the question is answered.")),
+          data: { threadRef: activeThreadId ? { environmentId, threadId: activeThreadId } : null },
+        });
+        if (activeThreadId) {
+          const store = useComposerDraftStore.getState();
+          const questionTarget = questionAttachmentDraftId(
+            environmentId,
+            activeThreadId,
+            activePendingUserInput.requestId,
+            questionId,
+          );
+          store.addThreadContexts(
+            composerDraftTarget,
+            threadContextsReferencedByAnswer(
+              displacedAnswer ?? "",
+              store.getComposerDraft(questionTarget)?.threadContexts ?? [],
+            ),
+            { appendReference: false },
+          );
+        }
       }
     }
     setPendingUserInputAnswersByRequestId((existing) => {
-      const question = activePendingUserInput.questions.find((entry) => entry.id === questionId);
-      if (!question) {
-        return existing;
-      }
-
       return {
         ...existing,
         [activePendingRequestKey]: {
@@ -588,8 +591,10 @@ export function usePendingThreadRequests(input: {
         },
       };
     });
-    promptRef.current = "";
-    composerRef.current?.resetCursorState({ cursor: 0 });
+    if (!question.multiSelect) {
+      promptRef.current = "";
+      composerRef.current?.resetCursorState({ cursor: 0 });
+    }
   };
   const onSelectActivePendingUserInputOptionStable = useStableCallback(
     onSelectActivePendingUserInputOption,
