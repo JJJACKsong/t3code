@@ -51,7 +51,7 @@ import {
   formatHourShort,
   formatPercent,
   formatTokens,
-  formatUsd,
+  formatRmbFromUsd,
   makeWindow,
 } from "@t3tools/shared/usageFormat";
 import { formatUsageContractMismatch, usageSourceMessages } from "@t3tools/shared/usageFormatCopy";
@@ -696,7 +696,7 @@ function UsageOverview({
               )}
             >
               {metric === "cost"
-                ? formatUsd(merged.costUsd, locale)
+                ? formatRmbFromUsd(merged.costUsd, locale)
                 : formatTokens(merged.totalTokens)}
             </p>
             <p className="inline-flex items-center gap-1 text-xs text-muted-foreground">
@@ -782,7 +782,7 @@ function UsageOverview({
                     {awaitingData
                       ? "-"
                       : metric === "cost"
-                        ? formatUsd(totals?.costUsd ?? 0, locale)
+                        ? formatRmbFromUsd(totals?.costUsd ?? 0, locale)
                         : formatTokens(totals?.totalTokens ?? 0)}
                   </dd>
                 </dl>
@@ -800,7 +800,7 @@ function UsageOverview({
                       })
                     : gt("{share} of tokens · {cost}", {
                         share: formatPercent(share),
-                        cost: formatUsd(totals?.costUsd ?? 0, locale),
+                        cost: formatRmbFromUsd(totals?.costUsd ?? 0, locale),
                       })}
                 </p>
               </div>
@@ -862,7 +862,7 @@ function UsageOverview({
           <Metric
             loading={loadingPartial}
             label={gt("Cache savings")}
-            value={formatUsd(merged.costQuality.cacheSavingsUsd, locale)}
+            value={formatRmbFromUsd(merged.costQuality.cacheSavingsUsd, locale)}
           />
         </dl>
       </section>
@@ -882,13 +882,13 @@ function UsageOverview({
               <UsageShareBar
                 label={gt("Cost by type")}
                 segments={costTypeSegments(merged.categoryCost)}
-                format={(value: number) => formatUsd(value, locale)}
+                format={(value: number) => formatRmbFromUsd(value, locale)}
               />
               {merged.speedCost.fast + merged.speedCost.ultrafast > 0 ? (
                 <UsageShareBar
                   label={gt("Cost by speed")}
                   segments={speedCostSegments(merged.speedCost)}
-                  format={(value: number) => formatUsd(value, locale)}
+                  format={(value: number) => formatRmbFromUsd(value, locale)}
                   aside={<SpeedPremium premiumUsd={merged.speedCost.premium} />}
                 />
               ) : null}
@@ -993,7 +993,7 @@ function UsageOverview({
                             <T>Unpriced</T>
                           </span>
                         ) : (
-                          formatUsd(model.costUsd, locale)
+                          formatRmbFromUsd(model.costUsd, locale)
                         )}
                       </td>
                       <td className={cn("hidden py-2.5 pl-6 sm:table-cell", rowFigures)}>
@@ -1064,7 +1064,7 @@ function UsageOverview({
                             figureClass(loadingProviders.has(provider)),
                           )}
                         >
-                          {formatUsd(period.byProvider.get(provider)?.costUsd ?? 0, locale)}
+                          {formatRmbFromUsd(period.byProvider.get(provider)?.costUsd ?? 0, locale)}
                         </td>
                       ))}
                       <td
@@ -1073,7 +1073,7 @@ function UsageOverview({
                           figureClass(loadingPartial),
                         )}
                       >
-                        {formatUsd(period.costUsd, locale)}
+                        {formatRmbFromUsd(period.costUsd, locale)}
                       </td>
                       <td
                         className={cn(

@@ -1,5 +1,5 @@
 import { T, useGT, useLocale, Var } from "gt-react";
-import { formatPercent, formatTokens, formatUsd } from "@t3tools/shared/usageFormat";
+import { formatPercent, formatTokens, formatRmbFromUsd } from "@t3tools/shared/usageFormat";
 import { isModelCostUnknown, type ModelTotals } from "@t3tools/shared/usageMerge";
 
 import { mergeAnsweredUsage, type EnvironmentUsageStatus } from "../../state/usage";
@@ -61,11 +61,14 @@ export function UsageModelDialog({
   const hitRate = cacheHitRate(model);
   const perMillion = costPerMillionTokens(model);
   const stats = [
-    { label: gt("Cost"), value: costUnknown ? gt("Unpriced") : formatUsd(model.costUsd, locale) },
+    {
+      label: gt("Cost"),
+      value: costUnknown ? gt("Unpriced") : formatRmbFromUsd(model.costUsd, locale),
+    },
     { label: gt("Tokens"), value: formatTokens(model.totalTokens) },
     perMillion === null
       ? null
-      : { label: gt("Per 1M tokens"), value: formatUsd(perMillion, locale) },
+      : { label: gt("Per 1M tokens"), value: formatRmbFromUsd(perMillion, locale) },
     hitRate === null ? null : { label: gt("Cache hit"), value: formatPercent(hitRate) },
   ].filter((stat) => stat !== null);
 
@@ -123,7 +126,7 @@ export function UsageModelDialog({
                 <UsageShareBar
                   label={gt("Cost by type")}
                   segments={costTypeSegments(usage.categoryCost)}
-                  format={(value: number) => formatUsd(value, locale)}
+                  format={(value: number) => formatRmbFromUsd(value, locale)}
                 />
               )}
               <UsageShareBar
@@ -135,7 +138,7 @@ export function UsageModelDialog({
                 <UsageShareBar
                   label={gt("Cost by speed")}
                   segments={speedCostSegments(usage.speedCost)}
-                  format={(value: number) => formatUsd(value, locale)}
+                  format={(value: number) => formatRmbFromUsd(value, locale)}
                   aside={<SpeedPremium premiumUsd={usage.speedCost.premium} />}
                 />
               ) : null}
@@ -166,7 +169,7 @@ export function SpeedPremium({ premiumUsd }: { readonly premiumUsd: number }) {
       <T>
         Premium{" "}
         <span className="text-foreground tabular-nums">
-          <Var>{formatUsd(premiumUsd, locale)}</Var>
+          <Var>{formatRmbFromUsd(premiumUsd, locale)}</Var>
         </span>
       </T>
     </span>

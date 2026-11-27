@@ -22,15 +22,16 @@ function formatLocale(locale: string | undefined): string {
 
 const numberFormatters = new Map<string, Intl.NumberFormat>();
 
-function numberFormatter(locale: string, currency: boolean): Intl.NumberFormat {
-  if (locale === "en-US") return currency ? CURRENCY : INTEGER;
+function numberFormatter(locale: string, currency: "USD" | "CNY" | null): Intl.NumberFormat {
+  if (locale === "en-US" && currency === "USD") return CURRENCY;
+  if (locale === "en-US" && currency === null) return INTEGER;
   const key = `${locale}:${currency}`;
   let formatter = numberFormatters.get(key);
   if (formatter === undefined) {
     formatter = currency
       ? new Intl.NumberFormat(locale, {
           style: "currency",
-          currency: "USD",
+          currency,
           minimumFractionDigits: 2,
           maximumFractionDigits: 2,
         })
@@ -82,11 +83,19 @@ export function usageSourceMessages(
 }
 
 export function formatUsd(value: number, locale?: string): string {
-  return numberFormatter(formatLocale(locale), true).format(value);
+  return numberFormatter(formatLocale(locale), "USD").format(value);
+}
+
+// China Foreign Exchange Trade System USD/CNY central parity, 2026-11-26.
+// https://www.chinamoney.com.cn/chinese/bkccpr/index.html?tab=2
+const USAGE_USD_TO_CNY_RATE = 6.7096;
+
+export function formatRmbFromUsd(value: number, locale?: string): string {
+  return numberFormatter(formatLocale(locale), "CNY").format(value * USAGE_USD_TO_CNY_RATE);
 }
 
 export function formatCount(value: number, locale?: string): string {
-  return numberFormatter(formatLocale(locale), false).format(Math.round(value));
+  return numberFormatter(formatLocale(locale), null).format(Math.round(value));
 }
 
 const TOKEN_SUFFIXES = ["K", "M", "B", "T"] as const;

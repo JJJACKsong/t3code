@@ -8,7 +8,7 @@ import {
   formatDayShort,
   formatHourShort,
   formatTokens,
-  formatUsd,
+  formatRmbFromUsd,
 } from "@t3tools/shared/usageFormat";
 import { formatRelativeHourShort } from "@t3tools/shared/usageFormatCopy";
 import { cn } from "~/lib/utils";
@@ -437,7 +437,8 @@ export function UsageProviderChart({
   const toY = (value: number) => valueToY(value, scale.max);
   const seriesClassName = (loading: boolean) =>
     cn("transition-opacity", loading && "opacity-40 delay-150");
-  const format = metric === "tokens" ? formatTokens : (value: number) => formatUsd(value, locale);
+  const format =
+    metric === "tokens" ? formatTokens : (value: number) => formatRmbFromUsd(value, locale);
   const formatPeriod = (period: string) =>
     resolution === "hour"
       ? formatHourShort(period, timeZone, hour12, locale)

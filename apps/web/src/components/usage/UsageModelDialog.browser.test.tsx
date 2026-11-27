@@ -43,9 +43,9 @@ describe("UsageModelDialog", () => {
 
     const dialog = page.getByRole("dialog");
     for (const [label, value] of [
-      ["Cost", "$2.00"],
+      ["Cost", "CN¥13.42"],
       ["Tokens", "1M"],
-      ["Per 1M tokens", "$2.00"],
+      ["Per 1M tokens", "CN¥13.42"],
       ["Cache hit", "90.0%"],
     ] as const) {
       await expect

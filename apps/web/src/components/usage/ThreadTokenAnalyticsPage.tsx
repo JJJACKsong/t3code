@@ -7,7 +7,12 @@ import {
   type ThreadTokenTurnEntry,
 } from "@t3tools/contracts";
 import { formatDuration } from "@t3tools/shared/usageLimitsCopy";
-import { formatCount, formatPercent, formatTokens, formatUsd } from "@t3tools/shared/usageFormat";
+import {
+  formatCount,
+  formatPercent,
+  formatTokens,
+  formatRmbFromUsd,
+} from "@t3tools/shared/usageFormat";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { CircleAlertIcon, ExternalLinkIcon } from "lucide-react";
 import { useGT, useLocale, useMessages } from "gt-react";
@@ -277,7 +282,7 @@ export function ThreadTokenAnalyticsPage() {
                       />
                       <StatCard
                         label={gt("Estimated cost")}
-                        value={formatUsd(scoped.costUsd, locale)}
+                        value={formatRmbFromUsd(scoped.costUsd, locale)}
                         hint={
                           <span className="flex flex-wrap gap-x-2 gap-y-0.5">
                             <span>
@@ -289,7 +294,7 @@ export function ThreadTokenAnalyticsPage() {
                             </span>
                             <span>
                               {gt("Cache savings {cost}", {
-                                cost: formatUsd(scoped.cacheSavingsUsd, locale),
+                                cost: formatRmbFromUsd(scoped.cacheSavingsUsd, locale),
                               })}
                             </span>
                           </span>
@@ -673,7 +678,7 @@ function AnalyticsTreeRow({
           </div>
           <div className="hidden w-14 xl:block">
             <dt className="sr-only">{gt("Cost")}</dt>
-            <dd className="text-muted-foreground">{formatUsd(node.costUsd, locale)}</dd>
+            <dd className="text-muted-foreground">{formatRmbFromUsd(node.costUsd, locale)}</dd>
           </div>
           <div className="hidden w-20 md:block">
             <dt className="sr-only">{gt("Context window")}</dt>
@@ -847,7 +852,7 @@ function TurnChart({ chart }: { readonly chart: TurnChartModel }) {
               </p>
             )}
             <p className="text-muted-foreground">
-              {formatUsd(activeBar.turn.costUsd, locale)}
+              {formatRmbFromUsd(activeBar.turn.costUsd, locale)}
               {activeBar.turn.durationMs === null
                 ? ""
                 : ` · ${formatDuration(activeBar.turn.durationMs, m)}`}
@@ -924,7 +929,7 @@ function TurnTable({ turns }: { readonly turns: readonly ThreadTokenTurnEntry[] 
                 {turn.durationMs === null ? "–" : formatDuration(turn.durationMs, m)}
               </td>
               <td className="py-2 pr-3 text-right text-foreground">
-                {formatUsd(turn.costUsd, locale)}
+                {formatRmbFromUsd(turn.costUsd, locale)}
               </td>
               <td className="py-2 pr-2">
                 <span className="flex flex-wrap items-center gap-1">
@@ -999,7 +1004,7 @@ function ModelTable({ models }: { readonly models: readonly ThreadTokenModelBrea
               </td>
               <td className="py-2 pr-3 text-right">{formatCount(model.turnCount, locale)}</td>
               <td className="py-2 pr-2 text-right text-foreground">
-                {formatUsd(model.costUsd, locale)}
+                {formatRmbFromUsd(model.costUsd, locale)}
               </td>
             </tr>
           ))}
